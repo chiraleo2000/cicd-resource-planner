@@ -1,0 +1,7 @@
+# Binary files in root
+/*.xlsx
+/*.zip
+
+# OS files
+Thumbs.db
+.DS_Store
