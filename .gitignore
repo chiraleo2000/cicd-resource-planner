@@ -2,6 +2,11 @@
 /*.xlsx
 /*.zip
 
+# Confidential project folders
+/โจทย์/
+/Standard/
+/Data/
+
 # OS files
 Thumbs.db
 .DS_Store
