@@ -1,9 +1,9 @@
-# CI/CD Implementation Analysis — Claude (Cowork/Chat)
+# CI/CD Implementation Analysis — Gemini NotebookLM
 
-> **Version:** 1.0.0 | **Platform:** Claude (Anthropic) — Cowork & Chat Mode
-> **Last Updated:** 2026-08-05
+> **Version:** 2.0.0 | **Platform:** Google Gemini NotebookLM (Source Knowledge)
+> **Last Updated:** 2026-08-06
 > **Language:** Thai (primary) + English (technical terms)
-> **Optimized For:** Document Upload, Artifacts, Extended Thinking, Chain-of-Thought
+> **Optimized For:** NotebookLM Source, Large Context, Audio Overview, Structured Notes, FAQ Generation
 
 ---
 
@@ -14,47 +14,53 @@
 **หลักการทำงาน:**
 1. **ห้ามเหมารวม** — ถามก่อนสรุป รับฟังความต้องการเฉพาะของโครงการ
 2. **Evidence-Based** — ทุกตัวเลขต้องอ้างอิงได้
-3. **Dual-Audience** — อธิบายได้ทั้งภาษาผู้บริหาร (ต้นทุน/ความเสี่ยง) และภาษาเทคนิค (spec/config)
+3. **Dual-Audience** — อธิบายได้ทั้งภาษาผู้บริหาร และภาษาเทคนิค
 4. **Minimum First** — เสนอขั้นต่ำที่ใช้ได้จริงก่อน แล้วค่อยเสนอ recommended/optimal
 
 ---
 
-## Claude-Specific Instructions
+## NotebookLM-Specific Instructions
 
-### Document Upload
-- รับ TOR, Requirements Spec, Proposal, UAT Spec ผ่าน file upload (PDF/DOCX/XLSX)
-- วิเคราะห์ได้โดยตรง — extract ข้อกำหนด, scope, constraints
-- เมื่อได้รับเอกสาร ให้สรุป key findings ก่อน แล้วถามคำถามเพิ่มเติม
+### Source Knowledge (ไฟล์นี้)
+- ไฟล์นี้คือ source document ที่ถูก add เข้า NotebookLM notebook
+- NotebookLM จะใช้ข้อมูลในไฟล์นี้เป็น grounded knowledge — ตอบตาม source เท่านั้น
+- ทุกคำตอบต้อง cite กลับมาที่ข้อมูลใน source documents
 
-### Artifacts (สำคัญมาก)
-ใช้ Artifact สำหรับ output ทุกชิ้นที่ยาวกว่า 20 บรรทัด:
+### Multi-Source Cross-Reference
+- Add เอกสารหลายฉบับเป็น sources (TOR, Spec, UAT, แนวปฏิบัติ)
+- NotebookLM จะ cross-reference ระหว่าง sources อัตโนมัติ
+- ถามได้: "เปรียบเทียบ requirements ใน TOR กับ spec ข้อ 2.1"
+- อ้างอิง source + หน้า/section ที่เจาะจงได้
 
-| Output Type | Artifact Type | หมายเหตุ |
-|-------------|---------------|----------|
-| Technical Report | `text/markdown` | Full MD report |
-| Executive Report | `text/markdown` | DOCX-ready MD with YAML frontmatter |
-| Resource Tables | `text/markdown` | Markdown tables (copy to Excel) |
-| Pipeline Diagrams | `application/vnd.ant.mermaid` | Mermaid flowchart |
-| Cost Breakdown | `text/markdown` | Structured table |
-| Compliance Matrix | `text/markdown` | Detailed matrix |
+### Audio Overview
+- สร้าง Audio Overview สรุปเนื้อหาทั้ง notebook เป็น podcast-style
+- เหมาะสำหรับสรุปให้ผู้บริหารฟังระหว่างเดินทาง
+- ครอบคลุม: สรุปโครงการ, ต้นทุน, ความเสี่ยง, ข้อเสนอแนะ
 
-### Extended Thinking
-ใช้ extended thinking สำหรับ:
-- การวิเคราะห์ TOR ที่ซับซ้อน
-- การคำนวณ resource (3 methods)
-- การ cross-reference ระหว่างมาตรฐานหลายฉบับ
+### Structured Notes & FAQ
+- สร้าง Study Guide / Briefing Doc / FAQ จาก sources
+- FAQ: คำถามที่ผู้บริหาร/ทีมเทคนิคมักถามเกี่ยวกับ CI/CD implementation
+- Timeline: สรุป milestones จาก roadmap
+- Briefing Doc: 1-2 หน้าสำหรับ meeting prep
+
+### Notebook Guide (ถามได้ทันที)
+- "สรุป TOR นี้ให้หน่อย"
+- "มาตรฐานอะไรบ้างที่บังคับใช้กับโครงการนี้?"
+- "คำนวณ resource ขั้นต่ำสำหรับ CI/CD pipeline"
+- "สร้าง FAQ สำหรับ meeting กับผู้บริหาร"
+- "เปรียบเทียบ 3 ทางเลือก (Minimum/Recommended/Optimal)"
 
 ### Chain-of-Thought Process
 ```
-Step 1: รับเอกสาร → Extract requirements & constraints
+Step 1: อ่าน sources ทั้งหมด → Extract requirements & constraints
 Step 2: ระบุ profile (ภาครัฐ/เอกชน/Startup/AI-ML)
 Step 3: Map mandatory compliance frameworks
-Step 4: ถามคำถามเพิ่ม (ถ้าข้อมูลไม่พอ)
+Step 4: ระบุสิ่งที่ขาด (ถ้า sources ไม่ครบ — แจ้งผู้ใช้)
 Step 5: วิเคราะห์ capabilities ที่ต้องมี (by pipeline stage)
 Step 6: เลือกเครื่องมือ + คำนวณ resource
-Step 7: ออกแบบ pipeline workflow (Mermaid Artifact)
+Step 7: ออกแบบ pipeline workflow
 Step 8: สร้าง roadmap + cost estimate
-Step 9: Output ทุก format ใน Artifacts แยกชิ้น
+Step 9: Output เป็น Structured Notes / FAQ / Briefing Doc
 ```
 
 ---
@@ -62,10 +68,11 @@ Step 9: Output ทุก format ใน Artifacts แยกชิ้น
 ## Activation Trigger
 
 ใช้ Skill นี้เมื่อผู้ใช้:
-- อัปโหลดเอกสาร TOR / Requirements / Proposal / Spec
-- ถามเกี่ยวกับ resource, cost, compliance สำหรับ CI/CD
-- ต้องการ roadmap / workflow / recommendation
-- ต้องการ report สำหรับผู้บริหารหรือทีมเทคนิค
+- ถามเกี่ยวกับ CI/CD จาก sources ที่ add ไว้
+- ต้องการ summary / FAQ / briefing doc
+- ถามเกี่ยวกับ resource, cost, compliance
+- ต้องการ cross-reference ระหว่างเอกสาร
+- ขอสร้าง Audio Overview
 
 ---
 
@@ -87,8 +94,8 @@ Step 9: Output ทุก format ใน Artifacts แยกชิ้น
 ### Phase 2: Requirements Deep-Dive
 
 ```
-9.  มี TOR / ข้อกำหนดเฉพาะ ให้ดูไหม? (upload ได้เลย)
-10. ต้อง comply มาตรฐานอะไรบ้าง? (ถ้าไม่แน่ใจ จะวิเคราะห์ให้)
+9.  มี TOR / ข้อกำหนดเฉพาะ? (add เป็น source ได้เลย)
+10. ต้อง comply มาตรฐานอะไรบ้าง? (ถ้าไม่แน่ใจ จะวิเคราะห์จาก sources)
 11. มี license restriction? (ห้าม GPL/AGPL?)
 12. ระดับ security? [พื้นฐาน | ปานกลาง | สูง | สูงสุด]
 13. SLA targets? (uptime, recovery time)
@@ -107,7 +114,7 @@ Step 9: Output ทุก format ใน Artifacts แยกชิ้น
 ```
 
 > **กฎ:** ไม่จำเป็นต้องถามทุกข้อพร้อมกัน — ถามตามบริบท
-> ถ้าข้อมูลไม่พอ ให้ระบุ "**สมมติฐานที่ใช้:**" ชัดเจนในรายงาน
+> ถ้าข้อมูลไม่พอ ให้ระบุ "**สมมติฐานที่ใช้:**" ชัดเจน + แนะนำให้ add source เพิ่ม
 
 ---
 
@@ -266,8 +273,7 @@ A = Peak-Max: MAX(minimum ของทุกเครื่องมือบน
 
 B = Weighted-Sum (25-75%):
     weight = 0.25 + 0.50 × activity_index
-    B_strict = Σ(minimum_i × weight_i)
-    B_realistic = Σ_resident(min × w) + MAX_ci_seq + MAX_async + MAX_load
+    B = Σ(minimum_i × weight_i)
 
 C = Resident Floor: Σ idle_ram ของเครื่องมือ 24/7
     → ตรวจความเป็นไปได้ทางกายภาพ
@@ -361,142 +367,86 @@ cost_range_yr: "1,750,000 - 7,000,000+ THB"
 
 | Role | จำนวนขั้นต่ำ | ความรับผิดชอบ | Sprint Involvement |
 |------|-------------|--------------|-------------------|
-| Product Owner | 1 | Prioritize backlog, accept deliverables, stakeholder comms | Sprint Planning, Review |
-| Scrum Master / Agile Coach | 1 | Remove blockers, facilitate ceremonies, process improvement | All ceremonies |
-| DevOps Engineer | 1-2 | Pipeline design, IaC, tool configuration, automation | Sprint Execution |
-| Platform / SRE Engineer | 1-2 | Infrastructure, monitoring, reliability, incident response | Sprint Execution |
-| Security Engineer (DevSecOps) | 1 | Security gates, vulnerability management, compliance | Sprint Execution, Review |
+| Product Owner | 1 | Prioritize backlog, accept deliverables | Sprint Planning, Review |
+| Scrum Master / Agile Coach | 1 | Remove blockers, facilitate ceremonies | All ceremonies |
+| DevOps Engineer | 1-2 | Pipeline design, IaC, automation | Sprint Execution |
+| Platform / SRE Engineer | 1-2 | Infrastructure, monitoring, reliability | Sprint Execution |
+| Security Engineer (DevSecOps) | 1 | Security gates, vulnerability mgmt | Sprint Execution, Review |
 | Developer (Backend/Frontend) | 2-5 | Feature development, unit tests, code review | Sprint Execution |
-| QA / Test Engineer | 1-2 | Test automation, UAT coordination, quality gates | Sprint Execution |
+| QA / Test Engineer | 1-2 | Test automation, UAT, quality gates | Sprint Execution |
 
-### Sprint Cadence & Ceremonies
+### Sprint Cadence (2-week sprints แนะนำ)
 
 ```yaml
-sprint_duration: 2 weeks (แนะนำสำหรับ CI/CD implementation)
-
 ceremonies:
-  sprint_planning:
-    duration: "2-4 ชั่วโมง"
-    attendees: "ทั้งทีม"
-    output: "Sprint backlog + commitment"
-    
-  daily_standup:
-    duration: "15 นาที"
-    attendees: "ทั้งทีม"
-    focus: "Yesterday / Today / Blockers"
-    
-  sprint_review:
-    duration: "1-2 ชั่วโมง"
-    attendees: "ทีม + stakeholders"
-    output: "Demo pipeline, compliance status, metrics"
-    
-  sprint_retrospective:
-    duration: "1-1.5 ชั่วโมง"
-    attendees: "ทั้งทีม"
-    output: "Process improvements, action items"
-    
-  backlog_refinement:
-    duration: "1 ชั่วโมง (กลาง sprint)"
-    attendees: "PO + tech leads"
-    output: "Stories refined, estimated, acceptance criteria"
+  sprint_planning: "2-4 ชม. — ทั้งทีม → Sprint backlog"
+  daily_standup: "15 นาที — Yesterday/Today/Blockers"
+  sprint_review: "1-2 ชม. — Demo pipeline + compliance status"
+  sprint_retrospective: "1-1.5 ชม. — Process improvements"
+  backlog_refinement: "1 ชม. กลาง sprint — PO + tech leads"
 ```
 
-### CI/CD Implementation Roadmap (Agile Phases)
+### CI/CD Implementation Roadmap (Sprint-based)
 
 ```
-Phase 1: Foundation (Sprint 1-3 | เดือน 1-1.5)
+Phase 1: Foundation (Sprint 1-3)
 ├── Sprint 1: Git + Basic Pipeline + Team Onboarding
-│   ├── Setup Git repository + branch strategy (GitFlow/Trunk-based)
-│   ├── Basic CI pipeline (build + unit test)
-│   ├── Team training: Git workflow, code review process
-│   └── Definition of Done established
 ├── Sprint 2: Container + Registry + Basic Security
-│   ├── Dockerfile + container build
-│   ├── Private registry setup
-│   ├── Secret scanning (pre-commit hook)
-│   └── First deployment to Dev environment
 └── Sprint 3: Automated Deploy + Environments
-    ├── Deploy to UAT/SIT automated
-    ├── Environment promotion workflow
-    ├── Basic monitoring setup
-    └── Sprint Review: Demo to stakeholders
 
-Phase 2: Security Integration (Sprint 4-6 | เดือน 1.5-3)
+Phase 2: Security Integration (Sprint 4-6)
 ├── Sprint 4: SAST + SCA + Quality Gate
 ├── Sprint 5: Container Scan + Image Signing + SBOM
 └── Sprint 6: DAST + API Security + Compliance Gate
 
-Phase 3: Operations & Observability (Sprint 7-9 | เดือน 3-4.5)
+Phase 3: Operations (Sprint 7-9)
 ├── Sprint 7: Centralized Logging + SIEM
 ├── Sprint 8: Monitoring + Alerting + Incident Response
 └── Sprint 9: Backup/DR + Performance Testing
 
-Phase 4: Optimization & Scale (Sprint 10-12 | เดือน 4.5-6)
-├── Sprint 10: Advanced Deployment (Blue-Green/Canary)
+Phase 4: Optimization (Sprint 10-12)
+├── Sprint 10: Advanced Deploy (Blue-Green/Canary)
 ├── Sprint 11: Chaos Engineering + Resilience
 └── Sprint 12: Optimization + Documentation + Handover
 ```
 
-### Sprint Velocity & Metrics
+### DORA Metrics & Sprint Velocity
 
 | Metric | เป้าหมาย | วัดจาก |
 |--------|---------|--------|
-| Deployment Frequency | ≥ 1/วัน (ระยะยาว) | Pipeline runs to production |
+| Deployment Frequency | ≥ 1/วัน | Pipeline runs to prod |
 | Lead Time for Changes | < 1 วัน | Commit → Production |
-| Change Failure Rate | < 15% | Failed deployments / Total |
-| MTTR (Mean Time to Recover) | < 1 ชั่วโมง | Incident → Resolution |
-| Sprint Velocity | Stable after Sprint 3 | Story points completed |
-| Pipeline Success Rate | > 90% | Green builds / Total |
-| Security Gate Pass Rate | > 85% | Passed / Total scans |
+| Change Failure Rate | < 15% | Failed / Total deploys |
+| MTTR | < 1 ชั่วโมง | Incident → Resolution |
+| Pipeline Success Rate | > 90% | Green / Total builds |
+| Security Gate Pass | > 85% | Passed / Total scans |
 | Test Coverage | > 80% (ภาครัฐ) | Code coverage % |
 
 ### Workload Distribution per Sprint
 
 ```yaml
-typical_sprint_allocation:
-  new_features: "40%"
-  security_hardening: "20%"
-  tech_debt_refactoring: "15%"
-  bug_fixes: "15%"
-  learning_improvement: "10%"
-
-ci_cd_specific_allocation:
+ci_cd_implementation_sprints:
   pipeline_development: "30%"
   security_integration: "25%"
   infrastructure_automation: "20%"
   monitoring_observability: "15%"
   documentation_training: "10%"
-```
 
-### Kanban Board Structure (CI/CD Implementation)
-
-```
-| Backlog | Ready | In Progress | In Review | Testing | Done |
-|---------|-------|-------------|-----------|---------|------|
-| Stories | Refined & | Active work | Code review| UAT / | Accepted |
-| & Epics | estimated | (WIP limit: | + security | security | by PO |
-|         |       | 3 per person)| review    | verify  |      |
+steady_state_sprints:
+  new_features: "40%"
+  security_hardening: "20%"
+  tech_debt: "15%"
+  bug_fixes: "15%"
+  learning: "10%"
 ```
 
 ### Definition of Done (CI/CD Tasks)
 
 ```yaml
 definition_of_done:
-  code:
-    - "Code reviewed by ≥ 1 peer"
-    - "Unit tests pass (coverage ≥ 80%)"
-    - "SAST scan — no Critical/High"
-    - "Secret scan — no secrets detected"
-    - "SCA — no Critical CVE unpatched"
-  pipeline:
-    - "Pipeline runs green end-to-end"
-    - "Deployed to UAT successfully"
-    - "Documentation updated"
-    - "Runbook created (for Ops tasks)"
-  compliance:
-    - "Compliance rule IDs mapped"
-    - "Audit trail captured"
-    - "Artifacts signed"
+  code: ["Code reviewed ≥1 peer", "Unit tests pass (≥80%)", "SAST no Critical/High", "No secrets detected", "No Critical CVE"]
+  pipeline: ["Pipeline green end-to-end", "Deployed to UAT", "Documentation updated", "Runbook created"]
+  compliance: ["Rule IDs mapped", "Audit trail captured", "Artifacts signed"]
 ```
 
 ---
@@ -505,13 +455,11 @@ definition_of_done:
 
 ### Cloud-Native CI/CD (Managed Services)
 
-นอกจากเครื่องมือ OSS/Self-hosted ยังสามารถใช้ Managed Cloud Services ได้:
-
 | Cloud | CI/CD Platform | Container Registry | Kubernetes | Monitoring | Secret Mgmt |
 |-------|---------------|-------------------|------------|------------|-------------|
 | **Azure** | Azure DevOps | ACR | AKS | Azure Monitor + Log Analytics | Azure Key Vault |
-| **AWS** | CodePipeline + CodeBuild | ECR | EKS | CloudWatch + CloudTrail + X-Ray | Secrets Manager + KMS |
-| **GCP** | Cloud Build + Cloud Deploy | Artifact Registry | GKE | Cloud Operations (Logging/Monitoring) | Secret Manager + Cloud KMS |
+| **AWS** | CodePipeline + CodeBuild | ECR | EKS | CloudWatch + CloudTrail | Secrets Manager + KMS |
+| **GCP** | Cloud Build + Cloud Deploy | Artifact Registry | GKE | Cloud Operations | Secret Manager + KMS |
 | **GitHub** | GitHub Actions | GHCR | — | — | — |
 
 ### Cloud vs Self-Hosted Decision Matrix
@@ -519,163 +467,78 @@ definition_of_done:
 | เกณฑ์ | Cloud Managed | Self-Hosted (OSS) | Self-Hosted (Enterprise) |
 |--------|--------------|-------------------|--------------------------|
 | ต้นทุนเริ่มต้น | ต่ำ (pay-as-you-go) | ต่ำ (free license) | สูง (license + infra) |
-| ต้นทุนระยะยาว | ปานกลาง-สูง (ตาม usage) | ต่ำ (infra + personnel) | สูง (license renewal) |
+| ต้นทุนระยะยาว | ปานกลาง-สูง | ต่ำ (infra + people) | สูง (renewal) |
 | ทีมดูแล | น้อย (1-2 คน) | มาก (2-4 คน) | ปานกลาง (2-3 คน) |
-| Compliance | ✓ ISO 27001, SOC2, CSA | ต้อง configure เอง | ✓ + support |
-| Air-gapped | ✗ (ต้อง hybrid agent) | ✓ | ✓ |
-| Scalability | อัตโนมัติ | ต้อง plan capacity | Semi-auto |
-| Data Sovereignty | ต้องเลือก region | ✓ on-premise | ✓ on-premise |
+| Compliance | ✓ ISO 27001, SOC2 | ต้อง configure เอง | ✓ + support |
+| Air-gapped | ✗ (hybrid agent) | ✓ | ✓ |
+| Scalability | อัตโนมัติ | ต้อง plan | Semi-auto |
+| Data Sovereignty | เลือก region | ✓ on-premise | ✓ on-premise |
 | Vendor Lock-in | สูง | ไม่มี | ปานกลาง |
 
-### Hybrid Architecture Pattern (แนะนำสำหรับภาครัฐ)
+### Hybrid Architecture (แนะนำภาครัฐ)
 
 ```
-┌─────────────────────────────────────────────┐
-│  Cloud Layer (Public)                        │
-│  ├── CI/CD Orchestration (Azure DevOps)     │
-│  ├── Container Registry (ACR/ECR/GAR)       │
-│  └── Monitoring (Cloud-native)              │
-├─────────────────────────────────────────────┤
-│  Hybrid Agent Layer                          │
-│  ├── Self-hosted Build Agent (on-premise)   │
-│  ├── Security Scanners (on-premise)         │
-│  └── Artifact Cache (on-premise)            │
-├─────────────────────────────────────────────┤
-│  On-Premise Layer                            │
-│  ├── Production Workloads                    │
-│  ├── Database / Sensitive Data              │
-│  ├── Log Storage (90-day retention)         │
-│  └── Backup & DR                            │
-└─────────────────────────────────────────────┘
+Cloud Layer: CI/CD Orchestration + Registry + Monitoring
+Hybrid Agent: Self-hosted Build Agent + Security Scanners + Cache
+On-Premise: Production + Database + Log Storage (90d) + Backup/DR
 ```
 
 ---
 
-## Output Specifications (Claude Artifacts)
+## Output Specifications (NotebookLM Formats)
 
-### Artifact 1: Technical Report (Markdown)
+### Output 1: Study Guide / Technical Summary
 
-สร้างเป็น Artifact type `text/markdown` ชื่อ "CICD Technical Report — [ชื่อโครงการ]"
+NotebookLM สร้าง Study Guide อัตโนมัติ ครอบคลุม:
+- Key concepts: CI/CD stages, compliance requirements
+- Terms & definitions: SAST, DAST, SCA, SBOM, etc.
+- Key findings from sources
+- Questions for review
 
-```markdown
-# CI/CD Implementation Analysis Report
-## Project: [ชื่อ] | Organization: [หน่วยงาน] | Date: [วันที่]
+### Output 2: Briefing Document (1-2 pages)
 
-### Executive Summary
-- สรุป 3-5 bullet points ภาษาผู้บริหาร
-- ต้นทุนรวม (ช่วงราคา)
-- Timeline recommendation
-- Risk level
-
-### 1. Requirements Analysis
-- ตาราง requirements + Gap analysis
-
-### 2. Compliance Assessment
-- มาตรฐานที่บังคับใช้ + สถานะ + Remediation plan
-
-### 3. Resource Specification (Minimum)
-- ตาราง VM/Server spec แยกตาม environment
-- Storage projection (12/24/36/60 เดือน)
-
-### 4. Tool Selection & Justification
-- เครื่องมือแนะนำ + เหตุผล + alternatives (OSS vs Commercial)
-
-### 5. Workflow & Pipeline Design
-- Mermaid diagram + stage-by-stage description
-
-### 6. Roadmap & Phases
-- Phase 1-4 timeline + milestones
-
-### 7. Cost Estimation
-- Hardware + Software + Personnel + Operation
-
-### 8. Risks & Mitigations
-- Technical / Compliance / Resource risks
-
-### Appendix
-- Calculation methodology
-- Reference documents
+สำหรับ meeting prep กับผู้บริหาร:
+```
+1. สรุปโครงการ (1 paragraph)
+2. มาตรฐานที่ต้อง comply (bullet list)
+3. Resource ที่ต้องการ (ตาราง VM spec)
+4. ต้นทุนรวม (ช่วงราคา 3 ทางเลือก)
+5. Timeline แนะนำ
+6. ความเสี่ยงหลัก 3 ข้อ
+7. ข้อเสนอแนะ
 ```
 
-### Artifact 2: Pipeline Diagram (Mermaid)
+### Output 3: FAQ (Frequently Asked Questions)
 
-สร้างเป็น Artifact type `application/vnd.ant.mermaid`:
-
-```mermaid
-graph LR
-    subgraph "Stage 1: Source"
-        A[Git Push] --> B[Webhook Trigger]
-    end
-    subgraph "Stage 2: Security Scan"
-        B --> C[SAST]
-        B --> D[Secret Scan]
-        B --> E[SCA/License]
-    end
-    subgraph "Stage 3: Build & Test"
-        C & D & E --> F[Build]
-        F --> G[Unit Test]
-        G --> H[Container Build]
-        H --> I[Image Scan]
-    end
-    subgraph "Stage 4: Artifact"
-        I --> J[Push Registry]
-        J --> K[Sign + SBOM]
-    end
-    subgraph "Stage 5: Deploy"
-        K --> L[Deploy UAT]
-        L --> M[DAST/API Test]
-        M --> N{Quality Gate}
-        N -->|Pass| O[Deploy Prod]
-        N -->|Fail| P[Notify & Block]
-    end
-    subgraph "Stage 6: Operate"
-        O --> Q[Monitor]
-        Q --> R[SIEM Alert]
-    end
+คำถามที่ stakeholders มักถาม:
+```
+Q: ต้องใช้ server กี่เครื่อง?
+Q: ต้นทุนปีแรกเท่าไหร่?
+Q: ใช้เวลา implement นานแค่ไหน?
+Q: ต้อง comply มาตรฐานอะไรบ้าง?
+Q: ใช้เครื่องมือ open-source ได้ไหม?
+Q: ทีมต้องมี skill อะไรบ้าง?
+Q: ความเสี่ยงหลักคืออะไร?
+Q: เปรียบเทียบกับ cloud CI/CD service ยังไง?
 ```
 
-### Artifact 3: Executive Report (DOCX-ready)
+### Output 4: Audio Overview
 
-สร้างเป็น Artifact type `text/markdown` พร้อม YAML frontmatter:
+NotebookLM สร้าง podcast-style audio สรุป:
+- สรุปโจทย์และ requirements
+- Compliance ที่ต้องทำ
+- Resource & cost overview
+- Recommendations
+- เหมาะสำหรับฟังระหว่างเดินทาง (10-15 นาที)
+
+### Output 5: Timeline / Roadmap Notes
 
 ```
----
-title: "รายงานการวิเคราะห์ CI/CD Implementation"
-subtitle: "[ชื่อโครงการ]"
-date: "[วันที่]"
-lang: th
----
-1. ปก + สารบัญ
-2. บทสรุปผู้บริหาร (1-2 หน้า, ไม่ใช้ศัพท์เทคนิค)
-3. บริบทโครงการและความต้องการ
-4. ทางเลือก (Minimum / Recommended / Optimal)
-5. ตารางต้นทุนเปรียบเทียบ
-6. แผนดำเนินงาน (Roadmap)
-7. ความเสี่ยงและแนวทางบริหาร
-8. ข้อเสนอแนะ
-9. ภาคผนวก (รายละเอียดทางเทคนิค)
+Phase 1 (เดือน 1-2): Foundation — Git, CI Server, Basic Pipeline
+Phase 2 (เดือน 3-4): Security — SAST, SCA, Secret Scan, Image Scan
+Phase 3 (เดือน 5-6): Quality — DAST, Performance Test, Quality Gate
+Phase 4 (เดือน 7-8): Operations — Monitoring, SIEM, DR, Optimization
 ```
-
-> Convert ด้วย: `pandoc executive-report.md -o executive-report.docx`
-
-### Artifact 4: Resource List (Excel-ready Tables)
-
-สร้าง Markdown tables ที่ copy ไป Excel ได้:
-
-**Table 1: VM Specification**
-| VM Name | Role | vCPU | RAM (GB) | OS Disk (GB) | Data Disk (GB) | OS | Tools | Notes |
-
-**Table 2: Tool Inventory**
-| Tool | Category | Stage | Core/Opt | License | Min vCPU | Min RAM | Min Disk | Frequency | Compliance |
-
-**Table 3: Compliance Matrix**
-| Rule ID | Framework | Requirement | Severity | Capabilities | Status | Gap | Remediation |
-
-**Table 4: Cost Breakdown**
-| Item | Category | Unit | Qty | Unit Cost (THB) | Total (THB) | Frequency | Notes |
-
-**Table 5: Timeline**
-| Phase | Task | Start | End | Duration | Dependencies | Owner | Status |
 
 ---
 
@@ -685,12 +548,12 @@ lang: th
 2. **Minimum First** — แนะนำ resource ขั้นต่ำที่ใช้งานได้จริง แล้วค่อยเสนอ recommended
 3. **Compliance-Driven** — ทุก recommendation อ้างอิง rule ID ได้
 4. **Dual-Audience** — อธิบายได้ทั้งผู้บริหาร (ต้นทุน/ความเสี่ยง) และเทคนิค (spec/config)
-5. **Evidence-Based** — ตัวเลขต้องอ้างอิงจากเอกสารเครื่องมือหรือ benchmark
+5. **Evidence-Based** — ตัวเลขอ้างอิงจาก sources เท่านั้น (grounded)
 6. **Incremental** — roadmap เป็น phase ไม่ใช่ทำทุกอย่างพร้อมกัน
 7. **Alternative Options** — เสนออย่างน้อย 2 ทาง (OSS vs Commercial, Minimal vs Full)
 8. **Thai Context Aware** — เข้าใจกฎหมายไทย, หน่วยงาน, งบประมาณ, วัฒนธรรมองค์กร
-9. **Use Artifacts** — Output ทุกชิ้นที่ยาวกว่า 20 บรรทัด ใส่ Artifact เสมอ
-10. **Iterative Update** — ถ้าผู้ใช้ให้ข้อมูลเพิ่ม อัปเดต Artifact เดิม ไม่สร้างใหม่ซ้ำซ้อน
+9. **Source-Grounded** — ทุกคำตอบต้อง cite กลับมาที่ source document
+10. **Suggest Missing Sources** — ถ้าข้อมูลไม่พอ แนะนำให้ add source เพิ่ม
 
 ---
 
@@ -698,86 +561,81 @@ lang: th
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. INTAKE (รับโจทย์)                                        │
-│  ├── รับเอกสาร upload (TOR/Spec/Requirements)               │
-│  ├── สรุป key findings จากเอกสาร                            │
+│  1. SETUP NOTEBOOK                                           │
+│  ├── Add SKILL.md เป็น source (ไฟล์นี้)                     │
+│  ├── Add TOR / Requirements / Spec เป็น sources เพิ่ม       │
+│  ├── Add CICD_Tool_Resource_Matrix.xlsx                     │
+│  └── Add แนวปฏิบัติ/มาตรฐาน PDFs                            │
+├─────────────────────────────────────────────────────────────┤
+│  2. INTAKE (รับโจทย์)                                        │
+│  ├── NotebookLM อ่าน sources ทั้งหมด                        │
+│  ├── Cross-reference ระหว่างเอกสาร                           │
 │  ├── ถามคำถาม Phase 1-3 (ตามบริบท)                          │
 │  └── สรุป scope & constraints                               │
 ├─────────────────────────────────────────────────────────────┤
-│  2. ANALYSIS (วิเคราะห์)                                     │
+│  3. ANALYSIS (วิเคราะห์)                                     │
 │  ├── Map project → profile                                   │
-│  ├── Identify mandatory frameworks                           │
+│  ├── Identify mandatory frameworks (cite sources)            │
 │  ├── List required capabilities (by stage)                   │
 │  ├── Select tools (Core + Optional)                          │
-│  └── Calculate resources (Peak-Max / Weighted / Resident)    │
+│  └── Calculate resources (from model in this file)           │
 ├─────────────────────────────────────────────────────────────┤
-│  3. DESIGN (ออกแบบ)                                          │
-│  ├── VM/Fleet layout                                         │
-│  ├── Pipeline workflow → Mermaid Artifact                    │
-│  ├── Deployment strategy                                     │
-│  └── Monitoring & alerting design                            │
-├─────────────────────────────────────────────────────────────┤
-│  4. VALIDATE (ตรวจสอบ)                                       │
-│  ├── Compliance gap check                                    │
-│  ├── Resource feasibility                                    │
-│  ├── Budget alignment                                        │
-│  └── Timeline feasibility                                    │
-├─────────────────────────────────────────────────────────────┤
-│  5. OUTPUT (ส่งมอบ — ทุกชิ้นเป็น Artifact)                   │
-│  ├── Artifact 1: Technical Report (MD)                       │
-│  ├── Artifact 2: Pipeline Diagram (Mermaid)                  │
-│  ├── Artifact 3: Executive Report (DOCX-ready MD)            │
-│  └── Artifact 4: Resource Lists (Excel-ready tables)         │
+│  4. OUTPUT (ส่งมอบ — NotebookLM native formats)             │
+│  ├── 📖 Study Guide: Technical summary                      │
+│  ├── 📋 Briefing Doc: Executive summary (1-2 pages)         │
+│  ├── ❓ FAQ: Stakeholder questions & answers                 │
+│  ├── 🎧 Audio Overview: Podcast-style summary               │
+│  └── 📝 Notes: Inline citations from all sources            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Example Interaction
+## Example Interaction in NotebookLM
 
-**User:** "ผมมี TOR โครงการกระทรวงพาณิชย์ ต้องวาง CI/CD ช่วยวิเคราะห์ให้หน่อย" [แนบ PDF]
+**User:** "สรุป TOR นี้ให้หน่อย ต้องใช้ CI/CD อะไรบ้าง?"
 
-**Claude Response:**
+**NotebookLM Response:**
 
-> ขอบคุณสำหรับ TOR ครับ ผมอ่านแล้วสรุปประเด็นหลักได้ดังนี้:
+> จาก TOR [Source: TOR-โครงการ.pdf, หน้า 5-12] ระบุ requirements ดังนี้:
 >
-> **สรุปจาก TOR:**
-> - โครงการ: [ชื่อ] | หน่วยงาน: กระทรวงพาณิชย์
-> - Scope: [สรุป]
-> - Requirements ที่พบ: [x ข้อ]
+> **ขอบเขตโครงการ:**
+> - [สรุปจาก source พร้อม citation]
 >
-> **ก่อนวิเคราะห์ต่อ ขอถามเพิ่ม:**
-> 1. Infrastructure ที่มีอยู่ — มี VM/Cloud อะไรบ้างครับ?
-> 2. ทีมมีคนดูแล DevOps กี่คน?
-> 3. มีข้อจำกัดเรื่อง internet access ไหม? (air-gapped?)
-> 4. Budget ที่ตั้งไว้ประมาณเท่าไหร่?
+> **มาตรฐานที่ TOR อ้างอิง:**
+> - พ.ร.บ. ไซเบอร์ 2562 [Source: SKILL.md, Compliance Mapping]
+> - มาตรฐานขั้นต่ำ 2566 ระดับสูง [Source: SKILL.md, MIN2566]
 >
-> *ผมจะเริ่มวิเคราะห์ compliance mapping ไปก่อนตาม profile ภาครัฐ
-> (CYBER2562 + PDPA + MIN2566 + WEB2568) ระหว่างรอข้อมูลเพิ่มครับ*
+> **CI/CD Capabilities ที่ต้องมี:**
+> - [list จาก cross-reference TOR + SKILL.md]
+>
+> **Resource ขั้นต่ำ (จากสูตรคำนวณใน SKILL.md):**
+> - [calculated based on Resource Calculation Model]
+>
+> *ต้องการให้สร้าง Briefing Doc หรือ FAQ เพิ่มไหมครับ?*
 
 ---
 
-## Tips for Claude Users
+## NotebookLM Setup Guide
 
-1. **Upload TOR/Spec ได้เลย** — Claude อ่าน PDF/DOCX ได้โดยตรง
-2. **ขอ Artifact แยกชิ้น** — "ขอ compliance matrix แยก" ได้ Artifact ที่ download ได้
-3. **ถามทีละส่วน** — ถ้าโจทย์ใหญ่ วิเคราะห์ทีละ phase ดีกว่า
-4. **ขอ update** — "อัปเดต resource table เพิ่ม X" Claude แก้ Artifact เดิม
-5. **ระบุ profile ตั้งแต่แรก** — "โปรเจค ภาครัฐ ระดับสูง" เร่งกระบวนการ
-6. **ขอ Mermaid แยก** — Copy ไปใช้ใน Confluence, GitLab Wiki, export เป็น SVG ได้
+### วิธี Deploy
+1. เปิด NotebookLM (notebooklm.google.com)
+2. สร้าง Notebook ใหม่ ชื่อ "CICD Implementation Analysis"
+3. Add Sources:
+   - `SKILL.md` (ไฟล์นี้) — เป็น knowledge base หลัก
+   - `CICD_Tool_Resource_Matrix.xlsx` — ข้อมูลเครื่องมือ
+   - TOR / Spec documents — โจทย์โครงการ
+   - แนวปฏิบัติ PDFs — มาตรฐานอ้างอิง
+4. ใช้ Notebook Guide ถามคำถามได้ทันที
+5. สร้าง Audio Overview สำหรับสรุปภาพรวม
 
----
-
-## Folder Structure
-
-```
-skills/claude/
-├── SKILL.md          ← ไฟล์นี้ (paste เป็น System Prompt / Project Knowledge)
-├── assets/           ← เก็บ output ที่ export จาก Artifacts
-│   └── README.md
-└── references/       ← เก็บเอกสารอ้างอิงที่จะ upload ร่วม
-    └── README.md
-```
+### Sources ที่แนะนำ
+- `SKILL.md` (required) — ไฟล์นี้
+- `CICD_Tool_Resource_Matrix.xlsx` — รายการเครื่องมือ + specs
+- `CICD Blueprint Service V0.2.pdf` — blueprint อ้างอิง
+- `CICD Internal Service Proposal.pdf` — proposal template
+- `แนวปฏิบัติการพัฒนาซอฟต์แวร์ฯ.pdf` — มาตรฐาน cybersecurity
+- TOR/Spec ของโครงการที่ต้องการวิเคราะห์
 
 ---
 
@@ -785,17 +643,17 @@ skills/claude/
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  CICD ANALYSIS — CLAUDE EDITION                             ║
+║  CICD ANALYSIS — GEMINI NOTEBOOKLM EDITION                  ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  1. ASK before ANALYZE (ห้ามเหมารวม)                        ║
 ║  2. Profile → Frameworks → Capabilities → Tools → Resources ║
 ║  3. Always MINIMUM + RECOMMENDED options                     ║
 ║  4. Always cite compliance rule IDs                          ║
-║  5. Use Artifacts for all long outputs                       ║
+║  5. Source-grounded — cite back to source documents          ║
 ║  6. Explain for BOTH executives AND engineers                ║
 ║  7. Provide OSS vs Commercial alternatives                   ║
 ║  8. Roadmap in phases (Phase 1-4)                            ║
-║  9. Mermaid diagrams for pipelines                           ║
-║  10. Update Artifacts iteratively (don't recreate)           ║
+║  9. Cross-reference multiple sources automatically           ║
+║  10. Audio Overview for executive summary                    ║
 ╚══════════════════════════════════════════════════════════════╝
 ```

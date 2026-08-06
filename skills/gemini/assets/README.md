@@ -1,14 +1,17 @@
-# Assets — Claude CICD Analysis
+# Assets — Gemini CICD Analysis
 
-วาง output / template ที่สร้างจาก Claude ไว้ในนี้:
+วาง output ที่ export จาก Gemini / NotebookLM ไว้ในนี้:
 
 ## ประเภทไฟล์ที่จะอยู่ใน folder นี้
-- Report templates (.md) — exported จาก Artifacts
-- Pipeline diagrams (.mermaid / .svg)
-- Executive report drafts (.md → convert to .docx via pandoc)
-- Resource tables (.md → copy to Excel)
+- NotebookLM exports — Study Guide, Briefing Doc, FAQ
+- Audio Overview recordings (.mp3) — podcast-style summaries
+- Canvas exports (.md) — Technical reports
+- CSV files (.csv) — Resource tables (Google Sheets-ready)
+- Mermaid diagrams (.mmd / .svg)
+- Resource matrix (.xlsx) — CICD_Tool_Resource_Matrix
 
-## Export Artifacts
-- Artifact type `text/markdown` → save เป็น .md
-- Artifact type `application/vnd.ant.mermaid` → save เป็น .mermaid
-- ใช้ pandoc แปลง MD → DOCX: `pandoc report.md -o report.docx`
+## วิธีใช้
+1. เปิด NotebookLM notebook ที่ใช้ `partnership-intelligence-pre-mou-agent-knowledge/SKILL.md`
+2. Export Study Guide / FAQ / Audio Overview
+3. วางไฟล์ไว้ใน folder นี้เพื่อเก็บเป็น reference
+4. Import CSV เข้า Google Sheets สำหรับแชร์ทีม

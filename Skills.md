@@ -1,7 +1,7 @@
 # CI/CD Implementation Analysis Skill
 
-> **Version:** 1.0.0 | **Last Updated:** 2026-08-05  
-> **Compatible With:** Claude (Cowork/Chat), Gemini Spark, ChatGPT Work, Kiro Skills  
+> **Version:** 2.0.0 | **Last Updated:** 2026-08-06  
+> **Compatible With:** Claude (Cowork/Chat), Gemini NotebookLM, ChatGPT Custom GPT, Kiro IDE, Cursor, VS Code Copilot  
 > **Language:** Thai (primary) + English (technical terms)
 
 ---
@@ -407,64 +407,91 @@ additional: [Model Registry, Data Versioning, Drift Detection]
 
 ## Platform-Specific Instructions
 
-> **📂 Full platform-specific prompts อยู่ใน `skills/` folder:**
+> **📂 Full platform-specific prompts อยู่ตามโครงสร้างที่ตรงกับ platform จริง:**
 
-| Platform | File | จุดเด่น |
-|----------|------|---------|
-| **Claude (Cowork/Chat)** | [`skills/claude/SKILL.md`](skills/claude/SKILL.md) | Artifacts, Document Upload, Extended Thinking, Chain-of-Thought |
-| **Gemini Spark** | [`skills/gemini/SKILL.md`](skills/gemini/SKILL.md) | Large Context (1M+), Canvas, Code Execution, Google Workspace, Multi-modal |
-| **ChatGPT Work** | [`skills/chatgpt/SKILL.md`](skills/chatgpt/SKILL.md) | Code Interpreter (.xlsx/.docx/.png), DALL-E, Web Browsing, Canvas |
+| Platform | Path | Format | จุดเด่น |
+|----------|------|--------|---------|
+| **Claude (Cowork/Chat)** | `skills/claude/SKILL.md` | Project Knowledge / System Prompt | Artifacts, Document Upload, Extended Thinking |
+| **ChatGPT Custom GPT** | `skills/chatgpt/knowledge-files/instructions.md` | Knowledge File | Code Interpreter (.xlsx/.docx/.png), DALL-E, Web Browsing |
+| **Gemini NotebookLM** | `skills/gemini/partnership-intelligence-pre-mou-agent-knowledge/SKILL.md` | NotebookLM Source | Large Context (1M+), Audio Overview, Cross-reference |
+| **Kiro IDE** | `.kiro/skills/cicd-analyst/SKILL.md` | Native Kiro Skill | Workspace-aware, File Generation, IaC, Hooks |
+| **Cursor** | `skills/cursor/.cursorrules` | .cursorrules | @codebase, Composer, Inline Chat |
+| **VS Code Copilot** | `skills/vscode/.github/copilot-instructions.md` | Copilot Instructions | @workspace, #file, /fix, /explain |
 
-### Folder Structure (per platform)
+### Folder Structure
 
 ```
-skills/<platform>/
-├── SKILL.md          ← Main prompt file (paste as System Prompt / Custom Instructions)
-├── assets/           ← Output: exported reports, charts, diagrams
-│   └── README.md
-└── references/       ← Input: TOR, Spec, Comments, Resource Matrix (upload ร่วม)
-    └── README.md
+project-root/
+├── .kiro/
+│   └── skills/
+│       └── cicd-analyst/
+│           └── SKILL.md              ← Kiro IDE native skill
+├── skills/
+│   ├── claude/
+│   │   ├── SKILL.md                  ← Claude (Cowork/Chat) — Project Knowledge
+│   │   ├── assets/
+│   │   │   └── README.md
+│   │   └── references/
+│   │       └── README.md
+│   ├── chatgpt/
+│   │   ├── knowledge-files/
+│   │   │   └── instructions.md       ← ChatGPT Custom GPT — Knowledge File
+│   │   ├── assets/
+│   │   │   ├── CICD_Tool_Resource_Matrix.xlsx
+│   │   │   └── README.md
+│   │   └── references/
+│   │       └── README.md
+│   ├── gemini/
+│   │   ├── partnership-intelligence-pre-mou-agent-knowledge/
+│   │   │   └── SKILL.md              ← Gemini NotebookLM — Source Document
+│   │   ├── assets/
+│   │   │   ├── CICD_Tool_Resource_Matrix.xlsx
+│   │   │   └── README.md
+│   │   └── references/
+│   │       └── README.md
+│   ├── cursor/
+│   │   └── .cursorrules              ← Cursor IDE — Project Rules
+│   └── vscode/
+│       └── .github/
+│           └── copilot-instructions.md  ← VS Code Copilot — Instructions
+└── Skills.md                          ← ไฟล์นี้ (overview + shared knowledge base)
 ```
 
-### Quick Summary by Platform
+### วิธีใช้แต่ละ Platform
 
 #### Claude (Cowork/Chat)
-- ใช้ document upload สำหรับ TOR/Spec files (PDF/DOCX)
-- ใช้ Artifacts สำหรับ output ที่ยาว (reports, tables, Mermaid diagrams)
-- Extended Thinking สำหรับการวิเคราะห์ซับซ้อน
-- Iterative update — แก้ Artifact เดิมได้ไม่ต้องสร้างใหม่
-- **Full instructions →** `skills/claude/SKILL.md`
+1. เปิด `skills/claude/SKILL.md`
+2. Paste เป็น Project Knowledge หรือ System Prompt
+3. Upload เอกสารจาก `references/` ร่วม conversation
+4. Output จะเป็น Artifacts — export ไว้ใน `assets/`
 
-#### Gemini Spark
-- ใช้ file attachment หลายไฟล์พร้อมกัน (large context window 1M+)
-- ใช้ Canvas สำหรับ collaborative editing
-- ใช้ code execution สำหรับ resource calculation (Python)
-- Multi-modal: รับ screenshots, whiteboard photos วิเคราะห์ได้
-- Export → Google Docs / Google Sheets / Google Slides
-- **Full instructions →** `skills/gemini/SKILL.md`
+#### ChatGPT Custom GPT
+1. สร้าง Custom GPT → Knowledge Files
+2. Upload `skills/chatgpt/knowledge-files/instructions.md`
+3. Upload `CICD_Tool_Resource_Matrix.xlsx` ร่วม
+4. เปิด Capabilities: Code Interpreter, DALL-E, Web Browsing
+5. Output: download .xlsx/.docx/.png จาก Code Interpreter
 
-#### ChatGPT Work
-- ใช้ Code Interpreter สร้าง **ไฟล์จริง** ที่ download ได้:
-  - Excel (.xlsx) — multi-sheet, formatted, formulas
-  - Word (.docx) — executive report จัดหน้าสวย
-  - Charts (.png) — cost comparison, Gantt, pie charts
-- ใช้ DALL-E สร้าง architecture diagrams สำหรับ presentation
-- ใช้ web browsing verify latest tool versions & pricing
-- ใช้ Canvas สำหรับ technical report ที่แก้หลายรอบ
-- **Full instructions →** `skills/chatgpt/SKILL.md`
+#### Gemini NotebookLM
+1. เปิด NotebookLM → สร้าง Notebook ใหม่
+2. Add Source: `skills/gemini/partnership-intelligence-pre-mou-agent-knowledge/SKILL.md`
+3. Add Sources เพิ่ม: TOR, Spec, Matrix
+4. ใช้ Notebook Guide ถามคำถาม + สร้าง Audio Overview
 
-#### Kiro IDE (This Workspace)
-- Reference files: `planner-standalone.html`, `CICD_Tool_Resource_Matrix.xlsx`
-- Use `Skills.sh` for automated report generation
-- Output to workspace directory structure
+#### Kiro IDE
+1. ไฟล์อยู่ที่ `.kiro/skills/cicd-analyst/SKILL.md` — activate อัตโนมัติ
+2. Kiro จะอ่าน workspace configs + TOR/Spec ได้โดยตรง
+3. สร้าง pipeline configs, IaC templates, reports ใน workspace
 
-### วิธีใช้
-1. **เปิด** `skills/<platform>/SKILL.md` ของ platform ที่ต้องการ
-2. **Copy** เนื้อหาทั้งหมด
-3. **Paste** เป็น Custom Instructions / System Prompt / Project Knowledge / Gem Config
-4. **เตรียมเอกสาร** จาก `references/` folder — upload ร่วมกับ conversation
-5. **เริ่มสนทนา** — AI จะถามคำถามก่อนวิเคราะห์ (ห้ามเหมารวม)
-6. **เก็บ output** ใน `assets/` folder ของ platform นั้นๆ
+#### Cursor IDE
+1. Copy `skills/cursor/.cursorrules` ไปวางที่ root ของ project
+2. Cursor จะอ่าน rules อัตโนมัติ
+3. ใช้ @codebase + Composer สำหรับ multi-file generation
+
+#### VS Code + GitHub Copilot
+1. Copy `skills/vscode/.github/copilot-instructions.md` ไปวางที่ `.github/` ของ repo
+2. Copilot จะอ่าน instructions อัตโนมัติ
+3. ใช้ @workspace + #file + /fix สำหรับ CI/CD work
 
 ---
 

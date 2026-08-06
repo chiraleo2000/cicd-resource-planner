@@ -1,6 +1,6 @@
-# References — Claude CICD Analysis
+# References — ChatGPT CICD Analysis
 
-วางเอกสารอ้างอิงที่ต้องการ upload ร่วมกับ SKILL.md ในนี้:
+วางเอกสารอ้างอิงที่ต้องการ upload ร่วมกับ Custom GPT ในนี้:
 
 ## เอกสารที่แนะนำ
 - TOR / ข้อกำหนดจ้าง (PDF/DOCX)
@@ -13,5 +13,6 @@
 
 ## วิธีใช้
 1. Copy ไฟล์อ้างอิงมาไว้ใน folder นี้
-2. Upload ไฟล์เหล่านี้ร่วมกับ SKILL.md ใน Claude conversation
-3. Claude จะใช้เป็น context ในการวิเคราะห์
+2. Upload เป็น Knowledge Files ใน Custom GPT (พร้อมกับ instructions.md)
+3. หรือ upload ระหว่าง conversation สำหรับ per-project analysis
+4. ChatGPT จะใช้ Code Interpreter วิเคราะห์ spreadsheet data โดยตรง
