@@ -4,36 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CI/CD Resource &amp; Compliance Planner</title>
-<meta name="description" content="เครื่องมือวางแผนทรัพยากรและตรวจ Compliance สำหรับ CI/CD Pipeline ภาครัฐและเอกชนไทย">
+<meta name="description" content="เครื่องมือวางแผนทรัพยากร สถาปัตยกรรม และสคริปต์ Pipeline YAML สำหรับ CI/CD ภาครัฐและเอกชนไทย">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f3864'/%3E%3Crect x='7' y='19' width='5' height='7' rx='1.5' fill='%23ed7d31'/%3E%3Crect x='14' y='13' width='5' height='13' rx='1.5' fill='%23ffffff'/%3E%3Crect x='21' y='7' width='5' height='19' rx='1.5' fill='%23ed7d31'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
+<a class="skip" href="#main">ข้ามไปเนื้อหา</a>
+
 <header class="topbar">
   <div class="brandmark"><span class="dot"></span> CI/CD Resource &amp; Compliance Planner</div>
   <div class="spacer"></div>
   <div class="btnrow noprint">
-    <select id="presetSel" title="โหลดผังเครื่องอ้างอิง" style="width:auto"></select>
-    <button class="btn small" id="btnExportJson">ส่งออก JSON</button>
-    <button class="btn small" id="btnExportCsv">ส่งออก CSV</button>
-    <button class="btn small" id="btnPrint">พิมพ์ / PDF</button>
-    <button class="btn small ghost" id="btnTheme" title="สลับโหมดสว่าง/มืด">◐</button>
+    <label class="field" style="margin:0;width:auto"><span class="sronly">โหลดผังเครื่องอ้างอิง</span>
+      <select id="presetSel" title="โหลดผังเครื่องอ้างอิง" style="width:auto"></select></label>
+    <button class="btn small" id="btnExportJson" type="button">ส่งออก JSON</button>
+    <button class="btn small" id="btnExportCsv" type="button">ส่งออก CSV</button>
+    <button class="btn small" id="btnPrint" type="button">พิมพ์ / PDF</button>
+    <button class="btn small ghost" id="btnTheme" type="button" title="สลับโหมดสว่าง/มืด" aria-label="สลับโหมดสว่างหรือมืด">◐</button>
   </div>
 </header>
 
 <div class="wrap">
+<main id="main">
 
-  <nav class="tabs noprint" role="tablist">
-    <button role="tab" data-tab="plan" aria-selected="true">1. วางแผนทรัพยากร</button>
-    <button role="tab" data-tab="catalog" aria-selected="false">2. ตารางเครื่องมือ</button>
-    <button role="tab" data-tab="compliance" aria-selected="false">3. Compliance &amp; Automation</button>
-    <button role="tab" data-tab="storage" aria-selected="false">4. Storage ระยะยาว</button>
-    <button role="tab" data-tab="method" aria-selected="false">5. วิธีคำนวณ</button>
+  <nav class="tabs noprint" role="tablist" aria-label="หน้าของโปรแกรมวางแผน">
+    <button type="button" role="tab" id="tab-plan" data-tab="plan" aria-controls="panel-plan" aria-selected="true" tabindex="0">1. วางแผนทรัพยากร</button>
+    <button type="button" role="tab" id="tab-catalog" data-tab="catalog" aria-controls="panel-catalog" aria-selected="false" tabindex="-1">2. ตารางเครื่องมือ</button>
+    <button type="button" role="tab" id="tab-compliance" data-tab="compliance" aria-controls="panel-compliance" aria-selected="false" tabindex="-1">3. Compliance</button>
+    <button type="button" role="tab" id="tab-storage" data-tab="storage" aria-controls="panel-storage" aria-selected="false" tabindex="-1">4. Storage</button>
+    <button type="button" role="tab" id="tab-method" data-tab="method" aria-controls="panel-method" aria-selected="false" tabindex="-1">5. วิธีคำนวณ</button>
+    <button type="button" role="tab" id="tab-architecture" data-tab="architecture" aria-controls="panel-architecture" aria-selected="false" tabindex="-1">6. สถาปัตยกรรม</button>
+    <button type="button" role="tab" id="tab-pipeline" data-tab="pipeline" aria-controls="panel-pipeline" aria-selected="false" tabindex="-1">7. Pipeline YAML</button>
   </nav>
 
   <!-- ================================================= PANEL 1 : PLANNER -->
-  <section class="panel active" id="panel-plan">
+  <section class="panel active" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
 
     <div id="printHead" class="card" style="display:none"></div>
 
@@ -180,7 +186,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-catalog">
+  <section class="panel" id="panel-catalog" role="tabpanel" aria-labelledby="tab-catalog" hidden>
     <div class="card">
       <h2>ตารางเครื่องมือ CI/CD ทุกประเภท พร้อม Resource Requirements (Minimum)</h2>
       <p class="hint" id="catalogMeta"></p>
@@ -201,7 +207,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-compliance">
+  <section class="panel" id="panel-compliance" role="tabpanel" aria-labelledby="tab-compliance" hidden>
     <div class="card">
       <h2>ผลตรวจ Compliance และการเลือกเครื่องมืออัตโนมัติ</h2>
       <p class="hint">คำนวณจากชุดเครื่องมือทั้งหมดที่วางไว้ในแท็บ 1 เทียบกับกฎหมายและมาตรฐานที่บังคับใช้กับประเภทโครงการที่เลือก</p>
@@ -228,7 +234,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-storage">
+  <section class="panel" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" hidden>
     <div class="card">
       <h2>ผลลัพธ์ระยะยาวของพื้นที่จัดเก็บ</h2>
       <p class="hint" id="storageMeta"></p>
@@ -244,7 +250,60 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-method">
+  <section class="panel" id="panel-architecture" role="tabpanel" aria-labelledby="tab-architecture" hidden>
+    <div class="card">
+      <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="margin:0">สถาปัตยกรรม CI/CD จากเครื่องมือที่เลือก</h2>
+        <div class="btnrow noprint">
+          <div class="togrow" id="archViewRow"></div>
+          <button class="btn small" id="btnCopyMermaid" type="button">คัดลอก Mermaid</button>
+          <button class="btn small" id="btnDlMermaid" type="button">ดาวน์โหลด .mmd</button>
+        </div>
+      </div>
+      <p class="hint">สร้างจากชุดเครื่องมือและผัง VM ในแท็บวางแผน — ไม่ดึงข้อมูลภายนอก
+        เปลี่ยนเครื่องมือแล้วแผนภาพนี้เปลี่ยนตาม</p>
+      <div id="archCanvas" class="arch-canvas"></div>
+    </div>
+    <div class="card">
+      <h3>ซอร์ส Mermaid (คัดลอกไปใช้ในเอกสารได้)</h3>
+      <label class="sronly" for="archMermaid">ซอร์ส Mermaid ของสถาปัตยกรรม</label>
+      <textarea id="archMermaid" class="mono yamlbox" readonly rows="14" spellcheck="false"></textarea>
+    </div>
+    <div class="card">
+      <h3>ข้อกำหนด Automation จากมาตรฐานและเครื่องมือที่เลือก</h3>
+      <div id="archReqs"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline" hidden>
+    <div class="card">
+      <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="margin:0">ออกแบบสคริปต์ Pipeline (YAML)</h2>
+        <div class="btnrow noprint">
+          <button class="btn small" id="btnCopyYaml" type="button">คัดลอก YAML</button>
+          <button class="btn small primary" id="btnDlYaml" type="button">ดาวน์โหลดไฟล์</button>
+        </div>
+      </div>
+      <p class="hint">งานถูกใส่เฉพาะเมื่อเลือกเครื่องมือนั้นแล้ว ขั้นสุดท้ายคือ deploy ต่อสภาพแวดล้อม
+        (Dev อัตโนมัติ → UAT มี DAST/quality gate → Prod ต้องอนุมัติ)</p>
+      <div class="lbl2">รูปแบบไฟล์</div>
+      <div class="togrow" id="pipeFlavorRow"></div>
+      <div id="pipeMeta" class="hint" style="margin:8px 0"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>งานใน Pipeline (เปิด/ปิดได้)</h3>
+        <div id="pipeJobs"></div>
+      </div>
+      <div class="card">
+        <h3>สคริปต์ที่สร้างให้</h3>
+        <label class="sronly" for="pipeYaml">สคริปต์ Pipeline ที่สร้างให้</label>
+        <textarea id="pipeYaml" class="mono yamlbox" rows="28" spellcheck="false"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-method" role="tabpanel" aria-labelledby="tab-method" hidden>
     <div class="card">
       <h2>วิธีคำนวณกรณีเครื่องเดียวแชร์หลายเครื่องมือ</h2>
 
@@ -253,20 +312,23 @@
       <p>ตีความว่า ณ เวลาใดเวลาหนึ่งมีเครื่องมือเพียงตัวเดียวที่ทำงานหนักที่สุด
       เป็นพื้นขั้นต่ำที่ต้องมีเพื่อให้เครื่องมือที่หนักที่สุดรันผ่านได้ ถ้าต่ำกว่านี้จะมีอย่างน้อยหนึ่งเครื่องมือที่รันไม่ได้เลย</p>
 
-      <h3>เงื่อนไขที่ 2 — B: Weighted-Sum 50-95% ตามความถี่การรัน</h3>
-      <p><code>w = w_base + w_span × activity_index = 0.50 + 0.45 × activity_index</code>
-        &nbsp;→&nbsp; ได้ช่วง <b>0.50 ถึง 0.95</b> ตามที่โจทย์กำหนด</p>
+      <h3>เงื่อนไขที่ 2 — B: Weighted-Sum 20-60% และบันไดร่วมเครื่อง</h3>
+      <p><code>w_solo = w_base + w_span × activity_index = 0.20 + 0.40 × activity_index</code>
+        &nbsp;→&nbsp; ช่วงเดี่ยว <b>0.20 ถึง 0.60</b></p>
+      <p><code>w_max(n) = 60%, 54%, 48%, 42%, 36%, 30%, 24%, 20%</code>
+        เมื่อมี n = 1 … 8+ เครื่องมือ self-hosted บนเครื่องเดียวกัน (managed ไม่นับ)</p>
+      <p><code>w_i = 0.20 + (w_max(n) − 0.20) × activity_index</code></p>
       <p><code>B1 (strict) = Σ ( minimum_i × w_i )</code> — บวกทุกเครื่องมือ</p>
       <p><code>B2 (realistic) = Σ<sub>resident</sub>( min × w ) + MAX<sub>ci_seq</sub> + MAX<sub>async</sub> + MAX<sub>load</sub></code></p>
-      <p>เหตุผลของ B2: ขั้นตอนภายใน Pipeline รอบเดียวกัน (SAST → Secret Scan → SCA → Build → Test)
-      ทำงาน<b>เรียงต่อกัน</b> ไม่ได้รันพร้อมกัน จึงใช้ค่าสูงสุดของกลุ่มแทนการบวก
-      ส่วน daemon ที่รันค้าง 24/7 ต้องบวกทุกตัวเพราะจองหน่วยความจำถาวรจริง</p>
+      <p>เหตุผลของบันได: เครื่องมือบนเครื่องเดียวกันไม่ได้พุ่งพร้อมกันทั้งก้อน
+      ยิ่งอยู่ร่วมกันมาก เปอร์เซ็นต์ซ้อนทับยิ่งลด จนพื้น 20% ที่ n ≥ 8</p>
       <div class="scrollx" style="max-height:none"><table class="tbl" id="freqTbl"></table></div>
+      <div class="scrollx" style="max-height:none;margin-top:10px"><table class="tbl" id="crossTbl"></table></div>
 
       <h3 style="margin-top:16px">ตัวตรวจ — C: Resident Floor</h3>
-      <p><code>C = Σ idle_ram ของเครื่องมือที่รันค้าง 24/7</code></p>
-      <p>ถ้า A และ B ได้ค่าต่ำกว่า C แปลว่าเครื่องบูตขึ้นมาเฉย ๆ หน่วยความจำก็เต็มแล้ว
-      จึงต้องยกผลลัพธ์ขึ้นเป็น C เป็นการตรวจความเป็นไปได้ทางกายภาพ</p>
+      <p><code>C = MAX(idle) + w_max(n) × (Σ idle − MAX(idle))</code></p>
+      <p>กัน daemon ที่หนักที่สุดเต็ม และลดส่วนที่ซ้อนของตัวอื่นตามบันไดเดียวกับ B
+      ถ้า A และ B ต่ำกว่า C แปลว่าเครื่องบูตขึ้นมาก็เต็มแล้ว จึงต้องยกผลลัพธ์ขึ้นเป็น C</p>
 
       <h3>ผลลัพธ์สุดท้าย</h3>
       <p><code>REQUIRED = MAX(A, B, C) + OS Reserve</code>
@@ -306,6 +368,7 @@
     </div>
   </section>
 
+</main>
 </div>
 
 <footer class="foot">

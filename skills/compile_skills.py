@@ -35,6 +35,7 @@ def write(path: Path, text: str) -> None:
 def main() -> None:
     core = [
         SHARED / "methodology.md",
+        SHARED / "pipeline-design.md",
         SHARED / "compliance-register.md",
         SHARED / "tool-catalog.md",
         SHARED / "documents.md",

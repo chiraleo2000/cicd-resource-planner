@@ -1,10 +1,10 @@
 ## Cursor outputs
 
-- `.gitlab-ci.yml` / `.github/workflows/cicd.yml` / `Jenkinsfile`
+- `.gitlab-ci.yml` / `.github/workflows/cicd.yml` / `Jenkinsfile` generated from selected tools (PipelineIR — see pipeline-design.md)
+- `docs/diagrams/pipeline.mmd` mermaid of the same IR (6 stages + Dev/UAT/Prod)
 - `Dockerfile` + `docker-compose.yml` + scanner config
 - `terraform/` + `ansible/` + `k8s/`
 - `reports/cicd-analysis-report.md` + `reports/resource-tables.md`
-- `docs/diagrams/pipeline.mmd`
 
 ### Setup
 

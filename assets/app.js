@@ -8,9 +8,15 @@
  *   3 เงื่อนไข/ข้อจำกัดโครงการ  -> นโยบาย license, สภาพแวดล้อม, ปริมาณงาน (คิด Scale ให้)
  *   4 เครื่องมือที่ต้องติดตั้ง   -> เลือกเองหรือให้ระบบเลือกให้ (greedy set-cover)
  *   5 จัดลง VM                 -> คำนวณ A / B1 / B2 / C แล้วเอาค่ามากสุด
+ *   แท็บ 6 สถาปัตยกรรม         -> Mermaid จากเครื่องมือที่เลือก
+ *   แท็บ 7 Pipeline YAML       -> สคริปต์ต่อสภาพแวดล้อม
  * ========================================================================== */
 'use strict';
 import { Planner, round } from './engine.js';
+import {
+  buildPipelineIR, emitGitlab, emitGithub, emitAzure, emitJenkins,
+  mermaidFlow, mermaidVms, mermaidEnvs, svgPipeline,
+} from './pipeline.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -44,7 +50,8 @@ let CAT = null, P = null, ST = null, PLAN = null, D = null;
 function defaultState() {
   return {
     project: { name: '', org: '', env: 'UAT / SIT', note: '' },
-    profile: 'gov', impact: 'high', mode: 'strict',
+    profile: 'gov', impact: 'high', mode: 'realistic',
+    pipelineOff: [], pipelineFlavor: '', pipelineView: 'flow',
     horizon: 36, retention: 90,
     frameworks: [],
     licenseBlock: ['strong-copyleft', 'network-copyleft'],
@@ -140,6 +147,9 @@ async function boot() {
   ST.env = Object.assign(def.env, ST.env || {});
   ST.workload = Object.assign(def.workload, ST.workload || {});
   if (!ST.frameworks || !ST.frameworks.length) ST.frameworks = P.resolveFrameworks(ST.profile, null);
+  if (!Array.isArray(ST.pipelineOff)) ST.pipelineOff = [];
+  if (!ST.pipelineFlavor) ST.pipelineFlavor = '';
+  if (!ST.pipelineView) ST.pipelineView = 'flow';
   D = derive();
   if (!ST.tools || !ST.tools.length) autoTools(true);
 
@@ -149,6 +159,7 @@ async function boot() {
   buildFrameworkTable();
   wireTabs();
   wireTopbar();
+  wirePipelineUi();
   render();
 }
 
@@ -265,8 +276,8 @@ function buildStaticUI() {
   $('#scaleRange').oninput = e => { ST.scale = +e.target.value; render(); };
 
   togRow($('#modeRow'), [
-    { value: 'strict', label: 'strict', sub: 'บวกทุกเครื่องมือ (ตามโจทย์ ปลอดภัยสุด)' },
-    { value: 'realistic', label: 'realistic', sub: 'บวกข้ามกลุ่ม ใช้ค่าสูงสุดในกลุ่ม' },
+    { value: 'realistic', label: 'realistic', sub: 'บวกข้ามกลุ่ม ใช้ค่าสูงสุดในกลุ่ม (ค่าเริ่มต้น)' },
+    { value: 'strict', label: 'strict', sub: 'บวกทุกเครื่องมือที่ถ่วงน้ำหนักแล้ว' },
   ], 'radio', v => ST.mode === v, v => { ST.mode = v; render(); });
 
   togRow($('#horizonRow'), CAT.model.horizons.map(h => ({
@@ -316,13 +327,43 @@ function shortLic(k) {
            'source-available': 'ห้าม SSPL/BUSL/Elastic' }[k] || k;
 }
 
+function activateTab(btn, focusPanel) {
+  if (!btn) return;
+  $$('.tabs button').forEach(x => {
+    const on = x === btn;
+    x.setAttribute('aria-selected', on ? 'true' : 'false');
+    x.tabIndex = on ? 0 : -1;
+  });
+  $$('.panel').forEach(p => {
+    const on = p.id === 'panel-' + btn.dataset.tab;
+    p.classList.toggle('active', on);
+    if (on) p.removeAttribute('hidden');
+    else p.setAttribute('hidden', '');
+  });
+  if (focusPanel) {
+    const panel = $('#panel-' + btn.dataset.tab);
+    if (panel) {
+      panel.setAttribute('tabindex', '-1');
+      panel.focus();
+    }
+  }
+}
+
 function wireTabs() {
-  $$('.tabs button').forEach(b => {
-    b.onclick = () => {
-      $$('.tabs button').forEach(x => x.setAttribute('aria-selected', 'false'));
-      b.setAttribute('aria-selected', 'true');
-      $$('.panel').forEach(p => p.classList.remove('active'));
-      $('#panel-' + b.dataset.tab).classList.add('active');
+  const tabs = $$('.tabs button');
+  tabs.forEach((b, i) => {
+    b.onclick = () => activateTab(b, false);
+    b.onkeydown = (e) => {
+      const key = e.key;
+      let next = -1;
+      if (key === 'ArrowRight' || key === 'ArrowDown') next = (i + 1) % tabs.length;
+      else if (key === 'ArrowLeft' || key === 'ArrowUp') next = (i - 1 + tabs.length) % tabs.length;
+      else if (key === 'Home') next = 0;
+      else if (key === 'End') next = tabs.length - 1;
+      else return;
+      e.preventDefault();
+      tabs[next].focus();
+      activateTab(tabs[next], false);
     };
   });
 }
@@ -340,6 +381,133 @@ function wireTopbar() {
   pre.innerHTML = '<option value="">— โหลดผังเครื่องอ้างอิง —</option>' +
     ARCH().map(a => '<option value="' + a.id + '">' + esc(a.name_th) + '</option>').join('');
   pre.onchange = () => { if (pre.value) { loadArchetype(pre.value); pre.value = ''; } };
+}
+
+function currentIR() {
+  return buildPipelineIR(ST.tools, {
+    vms: ST.vms, profile: ST.profile, disabled: ST.pipelineOff, project: ST.project,
+  });
+}
+
+function yamlFor(ir, flavor) {
+  if (flavor === 'github') return emitGithub(ir);
+  if (flavor === 'azure') return emitAzure(ir);
+  if (flavor === 'jenkins') return emitJenkins(ir);
+  return emitGitlab(ir);
+}
+
+function yamlFileName(flavor) {
+  if (flavor === 'github') return 'cicd.yml';
+  if (flavor === 'azure') return 'azure-pipelines.yml';
+  if (flavor === 'jenkins') return 'Jenkinsfile';
+  return '.gitlab-ci.yml';
+}
+
+function wirePipelineUi() {
+  const copy = (sel) => {
+    const el = $(sel);
+    if (!el) return;
+    const t = el.value || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).catch(() => {});
+    } else {
+      el.focus(); el.select();
+      try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    }
+  };
+  const btnM = $('#btnCopyMermaid');
+  if (btnM) btnM.onclick = () => copy('#archMermaid');
+  const btnDm = $('#btnDlMermaid');
+  if (btnDm) btnDm.onclick = () => {
+    const ir = currentIR();
+    const src = ST.pipelineView === 'vms' ? mermaidVms(ir)
+      : ST.pipelineView === 'env' ? mermaidEnvs(ir) : mermaidFlow(ir);
+    download(fileStem() + '-architecture.mmd', src, 'text/plain');
+  };
+  const btnY = $('#btnCopyYaml');
+  if (btnY) btnY.onclick = () => copy('#pipeYaml');
+  const btnDy = $('#btnDlYaml');
+  if (btnDy) btnDy.onclick = () => {
+    const ir = currentIR();
+    const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
+    download(fileStem() + '-' + yamlFileName(flavor), yamlFor(ir, flavor), 'text/yaml');
+  };
+}
+
+function renderArchitecture() {
+  const canvas = $('#archCanvas');
+  if (!canvas) return;
+  togRow($('#archViewRow'), [
+    { value: 'flow', label: '6 ขั้น Pipeline', sub: 'งานตามเครื่องมือที่เลือก' },
+    { value: 'vms', label: 'ผัง VM', sub: 'เครื่องมือต่อเครื่อง' },
+    { value: 'env', label: 'Dev → Prod', sub: 'เส้นทางสภาพแวดล้อม' },
+  ], 'radio', v => ST.pipelineView === v, v => { ST.pipelineView = v; render(); });
+  const ir = currentIR();
+  canvas.innerHTML = svgPipeline(ir, ST.pipelineView);
+  const src = ST.pipelineView === 'vms' ? mermaidVms(ir)
+    : ST.pipelineView === 'env' ? mermaidEnvs(ir) : mermaidFlow(ir);
+  const ta = $('#archMermaid');
+  if (ta) ta.value = src;
+  const req = $('#archReqs');
+  if (!req) return;
+  const jobs = ir.jobs.filter(j => j.enabled);
+  const gates = [...new Set(jobs.flatMap(j => j.gates))].sort();
+  req.innerHTML =
+    '<div class="grid3">' +
+      tile('งานใน Pipeline', fmt(jobs.length), 'จากเครื่องมือที่เลือก ' + ST.tools.length + ' รายการ', '') +
+      tile('สภาพแวดล้อม', ir.envs.map(e => e.toUpperCase()).join(' → '), 'ขั้นท้ายของ pipeline', '') +
+      tile('Orchestrator', ir.orchestrator, 'รูปแบบไฟล์: ' + ir.flavors.join(', '), '') +
+      tile('เกณฑ์ Gate', gates.join(' ') || '–', 'อ้างจากงานที่เปิดอยู่', gates.length ? 'ok' : 'warn') +
+    '</div>' +
+    '<ul class="hint" style="margin-top:10px;line-height:1.8">' +
+      '<li>Secret ที่พบในโค้ดต้อง block และ revoke (G-07)</li>' +
+      '<li>ภาครัฐบังคับ SBOM (G-10) และลายเซ็น artifact (G-11) ก่อนขึ้น Prod</li>' +
+      (ST.tools.includes('owasp-zap')
+        ? '<li>DAST บน UAT ก่อนขึ้น Prod ตามมาตรฐานเว็บไซต์ 2568</li>' : '') +
+      (ST.profile === 'gov'
+        ? '<li>โปรไฟล์ภาครัฐ: มีขั้น DR และ Prod เป็น manual approval</li>' : '') +
+    '</ul>';
+}
+
+function renderPipeline() {
+  const host = $('#pipeJobs');
+  if (!host) return;
+  const ir = currentIR();
+  const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
+  togRow($('#pipeFlavorRow'), [
+    { value: 'gitlab', label: 'GitLab CI', sub: '.gitlab-ci.yml' },
+    { value: 'github', label: 'GitHub Actions', sub: '.github/workflows/cicd.yml' },
+    { value: 'azure', label: 'Azure Pipelines', sub: 'azure-pipelines.yml' },
+    { value: 'jenkins', label: 'Jenkins', sub: 'Jenkinsfile' },
+  ], 'radio', v => flavor === v, v => { ST.pipelineFlavor = v; render(); });
+  const meta = $('#pipeMeta');
+  if (meta) {
+    meta.innerHTML = 'ตรวจพบ orchestrator = <b>' + esc(ir.orchestrator) +
+      '</b> · งานที่เปิด ' + ir.jobs.filter(j => j.enabled).length + '/' + ir.jobs.length +
+      ' · ไฟล์ ' + esc(yamlFileName(flavor));
+  }
+  host.innerHTML = ir.stages.map(st => {
+    const list = ir.jobs.filter(j => j.stage === st.id);
+    if (!list.length) return '';
+    return '<div class="stagebox"><div class="sh"><span class="stage-pill st' + st.n + '">' +
+      st.n + '</span>' + esc(st.label) + '</div><div class="togrow">' +
+      list.map(j => '<button type="button" class="tog" role="checkbox" aria-pressed="' +
+        j.enabled + '" data-job="' + esc(j.id) + '"><span class="box"></span><span>' +
+        esc(j.name) + '<span class="sub">' + esc(j.tool_id || 'deploy') +
+        (j.env ? ' · ' + j.env : '') +
+        (j.gates.length ? ' · ' + j.gates.join(' ') : '') +
+        '</span></span></button>').join('') + '</div></div>';
+  }).join('') || '<div class="note">เลือกเครื่องมือในแท็บวางแผนก่อน จึงจะมีงานใน pipeline</div>';
+  $$('#pipeJobs .tog').forEach(b => {
+    b.onclick = () => {
+      const id = b.dataset.job;
+      ST.pipelineOff = ST.pipelineOff.includes(id)
+        ? ST.pipelineOff.filter(x => x !== id) : [...ST.pipelineOff, id];
+      render();
+    };
+  });
+  const y = $('#pipeYaml');
+  if (y) y.value = yamlFor(ir, flavor);
 }
 
 /* ========================================================================== */
@@ -475,6 +643,8 @@ function render() {
   renderVms();
   renderCompliance();
   renderStorage();
+  renderArchitecture();
+  renderPipeline();
   refreshMeta();
   encodeState();
 }
@@ -861,7 +1031,10 @@ function vmCard(v, i) {
         (v.extraInstallGb ? ' · รวม mirror ' + v.extraInstallGb + ' GB' : '') + '</div></div>' +
     '</div>' +
     '<details class="acc" style="margin-top:10px" open><summary>เปรียบเทียบเงื่อนไขการคำนวณ (' +
-      v.tools.length + ' เครื่องมือ)</summary><div style="margin-top:8px">' +
+      v.tools.length + ' เครื่องมือ' +
+      (c.weight_model ? ' · n=' + c.weight_model.n_selfhosted +
+        ' · w_max=' + Math.round(c.weight_model.w_max * 100) + '%' : '') +
+      ')</summary><div style="margin-top:8px">' +
       '<div class="hint" style="margin-bottom:4px"><b>vCPU</b></div>' +
       mrow('A Peak-Max', c.method_a.vcpu, maxV, SERIES.A, govV === 'A', 'ตัวที่หนักสุด: ' + c.method_a.driver_vcpu) +
       mrow('B1 Strict', c.method_b.vcpu, maxV, SERIES.B, govV === 'B' && selB === 'B1', c.method_b.label_th) +
@@ -1206,10 +1379,25 @@ function buildMethodPanel() {
       Math.round(f.weight * 100) + '%</b></td><td class="hint">' + esc(f.note_th) +
       '</td></tr>').join('') + '</tbody>';
 
+  const ladder = CAT.model.w_cross_ladder || [];
+  const xt = $('#crossTbl');
+  if (xt) {
+    xt.innerHTML = '<thead><tr><th class="ctr">n เครื่องมือบน VM</th>' +
+      ladder.map((_, i) => '<th class="ctr">' + (i + 1) + (i === ladder.length - 1 ? '+' : '') +
+        '</th>').join('') + '</tr></thead><tbody><tr><td>w_max (เพดาน)</td>' +
+      ladder.map(x => '<td class="ctr"><b>' + Math.round(x * 100) + '%</b></td>').join('') +
+      '</tr><tr><td>resident ที่ n นั้น</td>' +
+      ladder.map(x => '<td class="ctr">' + Math.round(x * 100) + '%</td>').join('') +
+      '</tr></tbody>';
+  }
+
   const m = CAT.model;
   const rowsM = [
-    ['w_base', m.w_base, 'น้ำหนักต่ำสุด = 50% ตามโจทย์'],
-    ['w_span', m.w_span, 'ช่วงน้ำหนัก ทำให้สูงสุด = 0.50 + 0.45 = 0.95 (95%)'],
+    ['w_base', m.w_base, 'น้ำหนักต่ำสุด = 20%'],
+    ['w_span', m.w_span, 'ช่วงเดี่ยว ทำให้สูงสุด = 0.20 + 0.40 = 0.60 (60%) เมื่ออยู่เครื่องเดียว'],
+    ['w_cross_ladder', (m.w_cross_ladder || []).map(x => Math.round(x * 100) + '%').join(', '),
+      'เพดานน้ำหนักตามจำนวนเครื่องมือ self-hosted บน VM (n=1…8+)'],
+    ['w_cross_cap', m.w_cross_cap || 8, 'เมื่อถึงจำนวนนี้แล้ว w_max หยุดที่ 20%'],
     ['os_reserve_vcpu', m.os_reserve_vcpu, 'vCPU ที่กันให้ OS + Container Runtime'],
     ['os_reserve_ram_gb', m.os_reserve_ram_gb, 'RAM ที่กันให้ OS + Docker/containerd'],
     ['os_reserve_disk_gb', m.os_reserve_disk_gb, 'Disk ที่กันให้ระบบปฏิบัติการ + swap + log ระบบ'],
@@ -1328,6 +1516,14 @@ function exportPlan() {
     controls_required: D.ctrls.map(c => ({ control_id: c.control_id, severity: c.severity,
       title_th: c.title_th, caps: c.caps, refs: c.refs })),
     tools: ST.tools,
+    pipeline: {
+      flavor: ST.pipelineFlavor || currentIR().flavors[0],
+      ir: currentIR(),
+      files: {
+        gitlab: emitGitlab(currentIR()),
+        github: emitGithub(currentIR()),
+      },
+    },
     plan: {
       totals: PLAN.totals,
       compliance: {

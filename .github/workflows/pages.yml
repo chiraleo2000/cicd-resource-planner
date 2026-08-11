@@ -35,7 +35,7 @@ jobs:
       - name: สร้าง Excel และ HTML แบบ standalone
         run: |
           python3 scripts/build_xlsx.py dist/CICD_Tool_Resource_Matrix.xlsx
-          python3 scripts/build_standalone.py dist/planner-standalone.html
+          python3 scripts/build_standalone.py
 
       - name: สร้างรายงาน Compliance เป็นหน้าเว็บ
         run: |
@@ -45,19 +45,20 @@ jobs:
 
       - name: ประกอบโฟลเดอร์ _site
         run: |
-          mkdir -p _site
-          cp index.html _site/
-          cp planner-standalone.html _site/ 2>/dev/null || true
-          cp -r assets _site/ 2>/dev/null || true
-          cp -r data _site/ 2>/dev/null || true
-          cp -r web _site/ 2>/dev/null || true
           mkdir -p _site/dist
+          # หน้าแรกต้องเป็นไฟล์ standalone ที่เพิ่ง build — เปิดได้โดยไม่ fetch JSON
+          cp index.html _site/index.html
+          cp planner-standalone.html _site/planner-standalone.html
+          cp dist/planner-standalone.html _site/dist/planner-standalone.html
           cp dist/CICD_Tool_Resource_Matrix.xlsx _site/dist/
-          cp dist/planner-standalone.html _site/dist/
-          cp -r plans _site/ 2>/dev/null || true
-          cp README.md _site/ 2>/dev/null || true
+          cp -r data _site/data
+          cp -r plans _site/plans
+          cp README.md _site/README.md
           touch _site/.nojekyll
-          ls -R _site | head -50
+          grep -q 'window.__STANDALONE__=true' _site/index.html
+          grep -q 'panel-architecture' _site/index.html
+          grep -q 'panel-pipeline' _site/index.html
+          ls -la _site _site/dist
 
       - uses: actions/upload-pages-artifact@v3
         with:

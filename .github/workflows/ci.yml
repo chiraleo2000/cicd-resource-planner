@@ -56,8 +56,11 @@ jobs:
           assert not missing, f'catalog.json ขาด key: {missing}'
           assert d['tools'] and d['controls'] and d['frameworks'], 'catalog ว่างบางส่วน'
           for f in d['freq_classes']:
-              assert 0.50 - 1e-9 <= f['weight'] <= 0.95 + 1e-9, \
-                  f"น้ำหนักของ {f['id']} = {f['weight']} หลุดช่วง 50-95% ที่กำหนด"
+              assert 0.20 - 1e-9 <= f['weight'] <= 0.60 + 1e-9, \
+                  f"น้ำหนักของ {f['id']} = {f['weight']} หลุดช่วง 20-60% ที่กำหนด"
+          m = d['model']
+          assert abs(m['w_base'] - 0.20) < 1e-9 and abs(m['w_span'] - 0.40) < 1e-9
+          assert m.get('w_cross_cap') == 8 and len(m.get('w_cross_ladder') or []) == 8
           ids = {c['id'] for c in d['controls']}
           for fw in d['frameworks']:
               bad = [c for c in fw['controls'] if c not in ids]

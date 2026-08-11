@@ -1,10 +1,21 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "generated_for": "CI/CD Service Blueprint V0.2 — Generic Edition (ใช้ได้กับทุกประเภทโครงการ)",
   "storage_baseline_th": "ค่าฐานอ้างอิงสภาพแวดล้อม UAT/Production ขนาดเล็ก: ประมาณ 10 builds/วัน, 1-3 แอปพลิเคชัน, ทีม 5-15 คน, log ระดับ INFO — ใช้ Scale Factor ในโปรแกรมเพื่อขยายตามขนาดจริง",
   "model": {
-    "w_base": 0.5,
-    "w_span": 0.45,
+    "w_base": 0.2,
+    "w_span": 0.4,
+    "w_cross_ladder": [
+      0.6,
+      0.54,
+      0.48,
+      0.42,
+      0.36,
+      0.3,
+      0.24,
+      0.2
+    ],
+    "w_cross_cap": 8,
     "os_reserve_vcpu": 1,
     "os_reserve_ram_gb": 2,
     "os_reserve_disk_gb": 20,
@@ -68,16 +79,16 @@
       "label_th": "รันค้างตลอดเวลา 24/7 (Resident Daemon)",
       "runs_per_day": "ตลอดเวลา",
       "activity_index": 1.0,
-      "note_th": "กินหน่วยความจำถาวร เช่น Jenkins Master, Elasticsearch, PostgreSQL, MinIO — บวกเต็มเกือบ 100%",
-      "weight": 0.95
+      "note_th": "น้ำหนักสูงสุด 60% เมื่ออยู่เครื่องเดียว ลดตามจำนวนเครื่องมือร่วมเครื่องลงถึงพื้น 20%",
+      "weight": 0.6
     },
     {
       "id": "per_commit",
       "label_th": "ทุก Commit / Push (10-30 ครั้ง/วัน)",
       "runs_per_day": "10-30",
       "activity_index": 0.8,
-      "note_th": "Trigger บ่อยมาก เกิดการซ้อนทับของงาน (overlap) สูง",
-      "weight": 0.86
+      "note_th": "Trigger บ่อย ยังซ้อนทับได้ แต่ถูกจำกัดด้วยเพดาน w_max(n) ของเครื่องนั้น",
+      "weight": 0.52
     },
     {
       "id": "per_build",
@@ -85,7 +96,7 @@
       "runs_per_day": "5-15",
       "activity_index": 0.65,
       "note_th": "รันเป็นช่วง ๆ ระหว่างวันทำงาน มีโอกาสซ้อนทับปานกลาง",
-      "weight": 0.7925
+      "weight": 0.46
     },
     {
       "id": "per_pr",
@@ -93,7 +104,7 @@
       "runs_per_day": "3-10",
       "activity_index": 0.55,
       "note_th": "ผูกกับรอบ Review ของทีม",
-      "weight": 0.7475
+      "weight": 0.42
     },
     {
       "id": "nightly",
@@ -101,7 +112,7 @@
       "runs_per_day": "1",
       "activity_index": 0.35,
       "note_th": "เช่น DAST Full Scan, Dependency-Check ที่ใช้เวลานาน ย้ายไปรันหลังบ้าน",
-      "weight": 0.6575
+      "weight": 0.34
     },
     {
       "id": "weekly",
@@ -109,15 +120,15 @@
       "runs_per_day": "0.15-0.3",
       "activity_index": 0.15,
       "note_th": "เช่น Performance/Load Test รอบใหญ่, License Audit",
-      "weight": 0.5675
+      "weight": 0.26
     },
     {
       "id": "on_demand",
       "label_th": "ตามคำสั่ง / รอบ Release (ไม่กี่ครั้ง/เดือน)",
       "runs_per_day": "<0.1",
       "activity_index": 0.0,
-      "note_th": "บวกที่ 50% ซึ่งเป็นค่าต่ำสุดของช่วงที่กำหนด เพราะยังต้องกันที่ไว้ให้รันได้",
-      "weight": 0.5
+      "note_th": "บวกที่ 20% ซึ่งเป็นค่าต่ำสุดของช่วงที่กำหนด เพราะยังต้องกันที่ไว้ให้รันได้",
+      "weight": 0.2
     }
   ],
   "capabilities": {

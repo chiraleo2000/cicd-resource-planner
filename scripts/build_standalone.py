@@ -38,38 +38,53 @@ def catalog_js(catalog: dict) -> str:
     return payload
 
 
+def strip_es(src: str) -> str:
+    src = re.sub(r"^\s*import\s+[\s\S]*?from\s+'[^']+';\s*$", "", src, flags=re.M)
+    src = re.sub(r"^\s*export\s+class\s+", "class ", src, flags=re.M)
+    src = re.sub(r"^\s*export\s+function\s+", "function ", src, flags=re.M)
+    src = re.sub(r"^\s*export\s+\{[^}]*\};?\s*$", "", src, flags=re.M)
+    return src
+
+
 def main():
     extra_out = sys.argv[1] if len(sys.argv) > 1 else None
     html = read("web", "index.html")
     css = read("assets", "style.css")
-    engine = read("assets", "engine.js")
-    app = read("assets", "app.js")
+    engine = strip_es(read("assets", "engine.js"))
+    pipeline = strip_es(read("assets", "pipeline.js"))
+    app = strip_es(read("assets", "app.js"))
     catalog = json.loads(read("data", "catalog.json"))
+
+    if not catalog.get("tools"):
+        raise SystemExit("catalog.json ไม่มี tools — รัน python scripts/build_catalog.py ก่อน")
+    if catalog.get("schema_version") != "1.2.0":
+        print("[warn] schema_version =", catalog.get("schema_version"), "(คาด 1.2.0)")
 
     html = html.replace(
         '<link rel="stylesheet" href="assets/style.css">',
         "<style>\n" + css + "\n</style>",
     )
 
-    engine_in = re.sub(r"^\s*export\s+class\s+Planner", "class Planner", engine, flags=re.M)
-    engine_in = re.sub(r"^\s*export\s*\{[^}]*\};?\s*$", "", engine_in, flags=re.M)
-    app_in = re.sub(r"^\s*import\s+\{[^}]*\}\s+from\s+'\./engine\.js';\s*$", "", app, flags=re.M)
-
     bundle = (
         "/* ===== bundled: assets/engine.js ===== */\n"
-        + engine_in
+        + engine
+        + "\n/* ===== bundled: assets/pipeline.js ===== */\n"
+        + pipeline
         + "\n/* ===== bundled: assets/app.js ===== */\n"
-        + app_in
+        + app
     )
+    if re.search(r"^\s*import\s+", bundle, re.M) or re.search(r"^\s*export\s+", bundle, re.M):
+        raise SystemExit("ยังมี import/export หลงเหลือใน bundle — ห้ามเขียน index.html แบบนี้")
 
     payload = (
         '<script id="cicd-catalog">window.__STANDALONE__=true;'
         "window.__CATALOG__=" + catalog_js(catalog) + ";</script>\n"
         '<script id="cicd-app">\n' + bundle + "\n</script>"
     )
-    if '<script type="module" src="assets/app.js"></script>' not in html:
+    marker = '<script type="module" src="assets/app.js"></script>'
+    if marker not in html:
         raise SystemExit("web/index.html ต้องมี <script type=\"module\" src=\"assets/app.js\">")
-    html = html.replace('<script type="module" src="assets/app.js"></script>', payload)
+    html = html.replace(marker, payload)
 
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     html = html.replace(

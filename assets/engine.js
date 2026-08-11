@@ -4,9 +4,12 @@
  *
  * โมเดล
  *   A  Peak-Max          = MAX( minimum ของแต่ละเครื่องมือ )
- *   B1 Weighted-Sum      = Σ ( minimum_i × w_i )              , w = 0.50 + 0.45 × activity
+ *   B1 Weighted-Sum      = Σ ( minimum_i × w_i )
+ *                          w_solo = 0.20 + 0.40 × activity  (เดี่ยว 20-60%)
+ *                          w_i    = 0.20 + (w_max(n) − 0.20) × activity
+ *                          w_max(n) = 60% … 20% ตามจำนวนเครื่องมือ self-hosted บน VM
  *   B2 Weighted-Serialized = Σ resident(w×min) + MAX ต่อกลุ่ม ci_seq / async / load
- *   C  Resident Floor    = Σ idle_ram ของเครื่องมือที่รันค้าง 24/7
+ *   C  Resident Floor    = MAX(idle) + w_max(n) × (Σ idle − MAX(idle))
  *   REQUIRED = MAX(A, B, C) + OS Reserve  ->  ปัดขึ้นตาม Allocation Ladder
  * ========================================================================== */
 'use strict';
@@ -97,6 +100,32 @@ export class Planner {
     return round(this.model.w_base + this.model.w_span * f.activity_index, 4);
   }
 
+  hostToolCount(toolIds) {
+    let n = 0;
+    for (const tid of toolIds) {
+      const t = this.toolById.get(tid);
+      if (t && !t.managed) n += 1;
+    }
+    return n;
+  }
+
+  crossMax(n) {
+    const ladder = this.model.w_cross_ladder || [0.60, 0.54, 0.48, 0.42, 0.36, 0.30, 0.24, 0.20];
+    const cap = this.model.w_cross_cap || 8;
+    if (n <= 0) return ladder[0];
+    return ladder[Math.min(n, cap) - 1];
+  }
+
+  colocateWeight(freqId, n) {
+    const f = this.freqById.get(freqId);
+    if (!f) throw new Error('ไม่รู้จัก freq: ' + freqId);
+    const wMax = this.crossMax(n);
+    let w = this.model.w_base + (wMax - this.model.w_base) * f.activity_index;
+    if (w < this.model.w_base) w = this.model.w_base;
+    if (w > 0.60) w = 0.60;
+    return round(w, 4);
+  }
+
   ladderUp(value, ladder) {
     for (const step of ladder) if (value <= step + 1e-9) return step;
     const top = ladder[ladder.length - 1];
@@ -127,18 +156,21 @@ export class Planner {
       useRec = false, mode = 'strict', scaleFactor = 1, extraInstallGb = 0,
     } = opts;
     const key = useRec ? 'rec' : 'min';
+    const nHost = this.hostToolCount(toolIds);
+    const wMax = this.crossMax(nHost);
     const rows = toolIds.map(tid => {
       const t = this.toolById.get(tid);
       if (!t) throw new Error('ไม่รู้จักเครื่องมือ: ' + tid);
       const n = Math.max(1, parseInt(executors[tid] || 1, 10));
-      const w = this.dutyWeight(t.freq);
+      const wSolo = this.dutyWeight(t.freq);
+      const w = this.colocateWeight(t.freq, nHost);
       const st = this.projectToolStorage(t, horizonMonths, retentionOverride, scaleFactor);
       st.data_gb = round(st.data_gb * n, 2);
       st.install_gb = round(st.install_gb * n, 2);
       return {
         tool_id: tid, name: t.name, stage: t.stage, category: t.category,
         instances: n, freq: t.freq, freq_label: this.freqById.get(t.freq).label_th,
-        weight: w, resident: t.resident, conc_group: t.conc_group,
+        weight: w, weight_solo: wSolo, resident: t.resident, conc_group: t.conc_group,
         min_vcpu: t[key].vcpu * n,
         min_ram: t[key].ram_gb * n,
         idle_ram: t.idle_ram_gb * n,
@@ -179,9 +211,17 @@ export class Planner {
     }
     b2Vcpu = round(b2Vcpu, 3); b2Ram = round(b2Ram, 3);
 
-    /* C : Resident Floor */
-    const cRam = round(rows.filter(r => r.resident).reduce((s, r) => s + r.idle_ram, 0), 3);
-    const cVcpu = round(rows.filter(r => r.resident).reduce((s, r) => s + 0.25 * r.instances, 0), 3);
+    /* C : Resident Floor — กันตัวหนักสุดเต็ม + ลดส่วนซ้อนตามบันได */
+    const resRows = rows.filter(r => r.resident);
+    let cRam = 0, cVcpu = 0;
+    if (resRows.length) {
+      const idles = resRows.map(r => r.idle_ram);
+      const maxIdle = Math.max(...idles);
+      cRam = round(maxIdle + wMax * (idles.reduce((s, x) => s + x, 0) - maxIdle), 3);
+      const vparts = resRows.map(r => 0.25 * r.instances);
+      const maxV = Math.max(...vparts);
+      cVcpu = round(maxV + wMax * (vparts.reduce((s, x) => s + x, 0) - maxV), 3);
+    }
 
     /* ผลลัพธ์ */
     const selVcpu = mode === 'strict' ? bVcpu : b2Vcpu;
@@ -215,11 +255,12 @@ export class Planner {
       method_a: { vcpu: aVcpu, ram_gb: aRam, driver_vcpu: driverV, driver_ram: driverR,
                   label_th: 'เงื่อนไข 1: Peak-Max (ค่า minimum ที่สูงสุด)' },
       method_b: { vcpu: bVcpu, ram_gb: bRam,
-                  label_th: 'เงื่อนไข 2 (B1 Strict): Weighted-Sum 50-95% บวกทุกเครื่องมือ' },
+                  label_th: 'เงื่อนไข 2 (B1 Strict): Weighted-Sum 20-60% บวกทุกเครื่องมือ' },
       method_b2: { vcpu: b2Vcpu, ram_gb: b2Ram, detail: b2Detail,
                    label_th: 'เงื่อนไข 2 (B2 Realistic): บวกข้ามกลุ่ม / ใช้ค่าสูงสุดในกลุ่มที่รันเรียงกัน' },
       method_c: { vcpu: cVcpu, ram_gb: cRam,
-                  label_th: 'ตัวตรวจ: Resident Floor (RAM ที่ถูกจองค้างตลอด 24/7)' },
+                  label_th: 'ตัวตรวจ: Resident Floor (MAX idle + w_max(n) ของส่วนที่เหลือ)' },
+      weight_model: { n_selfhosted: nHost, w_max: wMax },
       governing: {
         vcpu: rawVcpu === aVcpu ? 'A' : (rawVcpu === selVcpu ? 'B' : 'C'),
         ram: rawRam === aRam ? 'A' : (rawRam === selRam ? 'B' : 'C'),

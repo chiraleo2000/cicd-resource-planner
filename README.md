@@ -1,6 +1,6 @@
 # DevSecOps CI/CD — Resource, Compliance & Skill Kit
 
-**Version 1.1.0** — `index.html` is a self-contained planner (catalog embedded, no JSON fetch).
+**Version 1.2.0** — self-contained planner: W% 20–60% with a per-VM ladder, Architecture + Pipeline YAML pages, catalog embedded (no JSON fetch).
 
 ชุดความรู้และเครื่องมือสำหรับออกแบบ **CI/CD แบบ DevSecOps** ให้โครงการพัฒนาซอฟต์แวร์ในไทย
 (ภาครัฐ / CII, เอกชน, internal, startup, AI/ML)
@@ -99,13 +99,15 @@ graph LR
 
 ```
 A  Peak-Max        = MAX(min ของทุกเครื่องมือบนเครื่องนั้น)
-B1 Strict          = Σ (min × weight)          ใช้ยื่นขอทรัพยากร
+B1 Strict          = Σ (min × w_i)
 B2 Realistic       = resident บวกทุกตัว + MAX ของงานที่รันเรียงกัน
-C  Resident Floor  = Σ idle RAM ของ daemon 24/7
+C  Resident Floor  = MAX(idle) + w_max(n) × (Σ idle − MAX(idle))
 REQUIRED           = MAX(A, B, C) + OS reserve
 ```
 
-น้ำหนักมาจากความถี่: resident 95% … on-demand 50% (`w = 0.50 + 0.45 × activity_index`)
+น้ำหนักเดี่ยว 20–60% (`w_solo = 0.20 + 0.40 × activity_index`) แล้วลดเพดานตามจำนวนเครื่องมือ self-hosted บน VM นั้น: 60% → 20% ที่ n = 8+
+
+แท็บ **6. สถาปัตยกรรม** และ **7. Pipeline YAML** สร้าง mermaid + สคริปต์ GitLab/GitHub/Azure/Jenkins จากเครื่องมือที่เลือก
 
 Scale Factor จากปริมาณงานจริง (ฐาน = 10 build/วัน, 2 แอป, ทีม 10 คน):
 
@@ -118,8 +120,8 @@ Scale Factor จากปริมาณงานจริง (ฐาน = 10 bu
 ## โครงสร้าง repo
 
 ```
-index.html                      Planner (ต้องเปิดผ่าน http.server)
-planner-standalone.html         Planner ไฟล์เดียว สำหรับ file:// / air-gap
+index.html                      Planner ไฟล์เดียว (catalog ฝังในไฟล์ — เปิด file:// ได้)
+planner-standalone.html         สำเนาเดียวกัน สำหรับ air-gap
 serve.cmd                       สตาร์ท http.server ที่พอร์ต 8000
 assets/  data/  scripts/  plans/  ซอร์ส Planner + ผัง 2/4/6 VM + AI/ML
 dist/                           Excel สูตรจริง + สำเนา standalone

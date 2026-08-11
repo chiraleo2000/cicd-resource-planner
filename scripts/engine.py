@@ -9,15 +9,15 @@
               ตีความว่า "ณ เวลาใดเวลาหนึ่งมีเครื่องมือเพียงตัวเดียวที่ทำงานหนักสุด"
               เป็นค่าต่ำสุดที่ต้องมีเพื่อให้เครื่องมือที่หนักที่สุด "รันผ่าน" ได้
 
-เงื่อนไขที่ 2  Method B : Weighted-Sum 50-95%
-              w_i = 0.50 + 0.45 x activity_index(freq_i)      -> อยู่ในช่วง 0.50 - 0.95
+เงื่อนไขที่ 2  Method B : Weighted-Sum 20-60% + บันไดร่วมเครื่อง
+              w_solo = 0.20 + 0.40 x activity_index(freq_i)     -> ช่วงเดี่ยว 0.20 - 0.60
+              w_max(n) = ladder[min(n,8)-1]   60% … 20% เมื่อมี n เครื่องมือ self-hosted
+              w_i = 0.20 + (w_max(n) - 0.20) x activity_index
               B   = ผลรวมของ ( minimum_i x w_i ) ทุกเครื่องมือ
-              ตีความว่า "เครื่องมือหลายตัวทำงานคาบเกี่ยวกัน" โดยน้ำหนักขึ้นกับความถี่
-              ที่เครื่องมือต้องรัน / ต้องรันค้างหลังบ้าน
 
 ตัวตรวจความเป็นไปได้  Method C : Resident Floor
-              C = ผลรวม idle_ram ของเครื่องมือที่รันค้าง 24/7
-              ถ้า A และ B ต่ำกว่า C แปลว่าเครื่องบูตขึ้นมาก็เต็มแล้ว จึงต้องยกขึ้นเป็น C
+              C = MAX(idle) + w_max(n) x (Σ idle - MAX(idle))
+              กัน daemon ที่หนักที่สุดเต็ม และลดส่วนที่ซ้อนของตัวอื่นตามบันไดเดียวกัน
 
 ผลลัพธ์สุดท้าย (ตามที่กำหนด "ต้องเป็นค่าที่มากสุดสำหรับ minimum เท่านั้น")
               REQUIRED = max(A, B, C)  +  OS/Runtime Reserve  ->  ปัดขึ้นตาม Allocation Ladder
@@ -56,9 +56,41 @@ DAYS_PER_MONTH = 30.44
 # helper
 # --------------------------------------------------------------------------- #
 def duty_weight(freq_id: str) -> float:
-    """แปลงชั้นความถี่เป็นน้ำหนัก 0.50 - 0.95"""
+    """น้ำหนักเดี่ยว (เครื่องมืออยู่เครื่องเดียว) ช่วง 0.20 - 0.60"""
     a = FREQ_BY_ID[freq_id]["activity_index"]
     return jsround(MODEL["w_base"] + MODEL["w_span"] * a, 4)
+
+
+def host_tool_count(tool_ids: list) -> int:
+    """นับเฉพาะเครื่องมือ self-hosted บน VM นั้น (managed ไม่กินโควตาและไม่นับใน n)"""
+    n = 0
+    for tid in tool_ids:
+        t = TOOL_BY_ID.get(tid)
+        if t and not t.get("managed"):
+            n += 1
+    return n
+
+
+def cross_max(n: int) -> float:
+    """เพดานน้ำหนักตามจำนวนเครื่องมือร่วมเครื่อง — หยุดที่ 20% เมื่อ n >= 8"""
+    ladder = MODEL["w_cross_ladder"]
+    cap = int(MODEL["w_cross_cap"])
+    if n <= 0:
+        return ladder[0]
+    idx = min(n, cap) - 1
+    return ladder[idx]
+
+
+def colocate_weight(freq_id: str, n: int) -> float:
+    """น้ำหนักจริงบน VM นั้น: ยึดเพดาน w_max(n) แล้วสเกลตามความถี่ อยู่ใน [0.20, 0.60]"""
+    a = FREQ_BY_ID[freq_id]["activity_index"]
+    w_max = cross_max(n)
+    w = MODEL["w_base"] + (w_max - MODEL["w_base"]) * a
+    if w < MODEL["w_base"]:
+        w = MODEL["w_base"]
+    if w > 0.60:
+        w = 0.60
+    return jsround(w, 4)
 
 
 def ladder_up(value: float, ladder: list) -> int:
@@ -116,18 +148,21 @@ def colocate(tool_ids: list, horizon_months: int = 36, retention_override=None,
     """
     executors = executors or {}
     key = "rec" if use_rec else "min"
+    n_host = host_tool_count(tool_ids)
+    w_max = cross_max(n_host)
     rows = []
     for tid in tool_ids:
         t = TOOL_BY_ID[tid]
         n = int(executors.get(tid, 1))
-        w = duty_weight(t["freq"])
+        w_solo = duty_weight(t["freq"])
+        w = colocate_weight(t["freq"], n_host)
         st = project_tool_storage(t, horizon_months, retention_override, scale_factor)
         st["data_gb"] = jsround(st["data_gb"] * n, 2)
         st["install_gb"] = jsround(st["install_gb"] * n, 2)
         rows.append(dict(
             tool_id=tid, name=t["name"], stage=t["stage"], category=t["category"],
             instances=n, freq=t["freq"], freq_label=FREQ_BY_ID[t["freq"]]["label_th"],
-            weight=w, resident=t["resident"], conc_group=t["conc_group"],
+            weight=w, weight_solo=w_solo, resident=t["resident"], conc_group=t["conc_group"],
             min_vcpu=t[key]["vcpu"] * n,
             min_ram=t[key]["ram_gb"] * n,
             idle_ram=t["idle_ram_gb"] * n,
@@ -143,7 +178,7 @@ def colocate(tool_ids: list, horizon_months: int = 36, retention_override=None,
     a_driver_vcpu = max(rows, key=lambda r: r["min_vcpu"])["name"] if rows else "-"
     a_driver_ram = max(rows, key=lambda r: r["min_ram"])["name"] if rows else "-"
 
-    # --- เงื่อนไขที่ 2 แบบ B1 : Weighted-Sum 50-95% (บวกทุกตัว) ---
+    # --- เงื่อนไขที่ 2 แบบ B1 : Weighted-Sum 20-60% + บันไดร่วมเครื่อง ---
     b_vcpu = jsround(sum(r["w_vcpu"] for r in rows), 3)
     b_ram = jsround(sum(r["w_ram"] for r in rows), 3)
 
@@ -167,9 +202,17 @@ def colocate(tool_ids: list, horizon_months: int = 36, retention_override=None,
                               vcpu=jsround(gv, 3), ram_gb=jsround(gr, 3)))
     b2_vcpu, b2_ram = jsround(b2_vcpu, 3), jsround(b2_ram, 3)
 
-    # --- ตัวตรวจ : Resident Floor ---
-    c_ram = jsround(sum(r["idle_ram"] for r in rows if r["resident"]), 3)
-    c_vcpu = jsround(sum(0.25 * r["instances"] for r in rows if r["resident"]), 3)
+    # --- ตัวตรวจ : Resident Floor (กันตัวหนักสุดเต็ม + ลดส่วนซ้อนตามบันได) ---
+    res_rows = [r for r in rows if r["resident"]]
+    if res_rows:
+        idles = [r["idle_ram"] for r in res_rows]
+        max_idle = max(idles)
+        c_ram = jsround(max_idle + w_max * (sum(idles) - max_idle), 3)
+        vparts = [0.25 * r["instances"] for r in res_rows]
+        max_v = max(vparts)
+        c_vcpu = jsround(max_v + w_max * (sum(vparts) - max_v), 3)
+    else:
+        c_ram, c_vcpu = 0.0, 0.0
 
     # --- ผลลัพธ์ = ค่าที่มากสุด + OS Reserve -> ปัดขึ้น ---
     sel_vcpu = b_vcpu if mode == "strict" else b2_vcpu
@@ -212,11 +255,12 @@ def colocate(tool_ids: list, horizon_months: int = 36, retention_override=None,
                       driver_vcpu=a_driver_vcpu, driver_ram=a_driver_ram,
                       label_th="เงื่อนไข 1: Peak-Max (ค่า minimum ที่สูงสุด)"),
         method_b=dict(vcpu=b_vcpu, ram_gb=b_ram,
-                      label_th="เงื่อนไข 2 (B1 Strict): Weighted-Sum 50-95% บวกทุกเครื่องมือ"),
+                      label_th="เงื่อนไข 2 (B1 Strict): Weighted-Sum 20-60% บวกทุกเครื่องมือ"),
         method_b2=dict(vcpu=b2_vcpu, ram_gb=b2_ram, detail=b2_detail,
                        label_th="เงื่อนไข 2 (B2 Realistic): บวกข้ามกลุ่ม / ใช้ค่าสูงสุดในกลุ่มที่รันเรียงกัน"),
         method_c=dict(vcpu=c_vcpu, ram_gb=c_ram,
-                      label_th="ตัวตรวจ: Resident Floor (RAM ที่ถูกจองค้างตลอด 24/7)"),
+                      label_th="ตัวตรวจ: Resident Floor (MAX idle + w_max(n) ของส่วนที่เหลือ)"),
+        weight_model=dict(n_selfhosted=n_host, w_max=w_max),
         governing=dict(
             vcpu="A" if raw_vcpu == a_vcpu else ("B" if raw_vcpu == sel_vcpu else "C"),
             ram="A" if raw_ram == a_ram else ("B" if raw_ram == sel_ram else "C"),

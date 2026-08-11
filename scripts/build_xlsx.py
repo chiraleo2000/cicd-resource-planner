@@ -107,8 +107,8 @@ def sheet_params(wb):
         ("OS Reserve — Disk (GB)", C.MODEL["os_reserve_disk_gb"], "ระบบปฏิบัติการ Ubuntu + swap + log ระบบ"),
         ("Disk Free Ratio", C.MODEL["disk_free_ratio"],
          "ต้องเหลือพื้นที่ว่างเป็นสัดส่วนนี้เสมอ (0.25 = เหลือว่าง 25%) เพราะ Docker/Elasticsearch จะหยุดทำงานเมื่อ disk ใกล้เต็ม"),
-        ("w_base (น้ำหนักต่ำสุด)", C.MODEL["w_base"], "คือ 50% ตามโจทย์ที่กำหนด — ใช้กับเครื่องมือที่รันตามคำสั่ง/รอบ Release"),
-        ("w_span (ช่วงน้ำหนัก)", C.MODEL["w_span"], "คือ 0.45 ทำให้น้ำหนักสูงสุด = 0.50 + 0.45 = 0.95 (95%) ตามโจทย์"),
+        ("w_base (น้ำหนักต่ำสุด)", C.MODEL["w_base"], "คือ 20% — ใช้กับเครื่องมือที่รันตามคำสั่ง/รอบ Release"),
+        ("w_span (ช่วงน้ำหนัก)", C.MODEL["w_span"], "คือ 0.40 ทำให้น้ำหนักเดี่ยวสูงสุด = 0.20 + 0.40 = 0.60 (60%) เมื่ออยู่เครื่องเดียว"),
     ]
     r = 3
     for label, val, note in rows:
@@ -188,7 +188,7 @@ def ladder_formula(value_ref, ladder_ref):
 def sheet_freq(wb):
     ws = wb.create_sheet(S_FREQ)
     title(ws, "02 — ชั้นความถี่การรัน และการแปลงเป็นน้ำหนัก (Duty Weight)",
-          "w = w_base + w_span x activity_index  ->  อยู่ในช่วง 50% - 95% ตามโจทย์")
+          "w_solo = w_base + w_span x activity_index  ->  ช่วงเดี่ยว 20% - 60%; บน VM ใช้ w_max(n) ladder")
     widths(ws, {"A": 14, "B": 44, "C": 14, "D": 14, "E": 12, "F": 70})
     hdr(ws, 2, ["freq_id", "ความถี่การรัน", "ครั้ง/วัน", "activity_index",
                 "น้ำหนัก w", "เหตุผล / ข้อควรระวัง"])
@@ -211,9 +211,9 @@ def sheet_freq(wb):
         c.alignment = Alignment(wrap_text=True, vertical="top")
         c.border = BORDER
         ws.row_dimensions[r].height = 34
-    ws["A11"] = ("ที่มาของช่วง 50-95%: เป็นเงื่อนไขที่กำหนดในโจทย์ — เครื่องมือที่รันตามคำสั่ง/รอบ Release "
-                 "บวกที่ 50% (ยังต้องกันที่ไว้ให้รันได้) ส่วนเครื่องมือที่รันค้าง 24/7 บวกที่ 95% "
-                 "(เกือบเต็มเพราะจองหน่วยความจำถาวร)")
+    ws["A11"] = ("ช่วง 20-60%: เครื่องมือตามคำสั่งบวกที่ 20% (กันที่ไว้ให้รันได้) "
+                 "เครื่องมือ resident บนเครื่องเดียวบวกที่ 60% แล้วลดตามจำนวนเครื่องมือร่วมเครื่อง "
+                 "ลงถึงพื้น 20% เมื่อมี 8 ตัวขึ้นไป")
     cellfont(ws["A11"], size=8, italic=True, color="808080")
     ws.merge_cells("A11:F11")
     ws.row_dimensions[11].height = 30

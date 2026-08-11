@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 แหล่งข้อมูลกลาง (Single Source of Truth) สำหรับ CI/CD Resource Planner
-- FREQ_CLASSES : ชั้นความถี่การรัน -> Duty Weight 50-95%
+- FREQ_CLASSES : ชั้นความถี่การรัน -> Duty Weight 20-60% + บันไดร่วมเครื่อง
 - CAPABILITIES : ความสามารถที่ระบบ CI/CD ต้องมี (ใช้ map compliance)
 - FRAMEWORKS   : กฎหมาย/มาตรฐานที่เกี่ยวข้อง
 - RULES        : ข้อกำหนดที่ต้องปฏิบัติ -> ต้องมี capability อะไร
@@ -14,20 +14,21 @@
 ค่า rec_* คือค่าที่แนะนำเมื่อรับงานจริงต่อเนื่อง (steady state)
 """
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 GENERATED_FOR = "CI/CD Service Blueprint V0.2 — Generic Edition (ใช้ได้กับทุกประเภทโครงการ)"
 
 # ---------------------------------------------------------------------------
-# 1) ชั้นความถี่การรัน  ->  Duty Weight (w) = 0.50 + 0.45 * activity_index
-#    ใช้กับ "เงื่อนไขแบบที่ 2" (Weighted Sum 50-95%)
+# 1) ชั้นความถี่การรัน  ->  Duty Weight เดี่ยว (w_solo) = 0.20 + 0.40 * activity_index
+#    ช่วง 20-60% เมื่อเครื่องมืออยู่เครื่องเดียว
+#    เมื่อรวมหลายเครื่องมือบน VM เดียวกัน ใช้ w_max(n) ladder แทนเพดาน 60%
 # ---------------------------------------------------------------------------
 FREQ_CLASSES = [
     dict(id="resident",   label_th="รันค้างตลอดเวลา 24/7 (Resident Daemon)",
          runs_per_day="ตลอดเวลา", activity_index=1.00,
-         note_th="กินหน่วยความจำถาวร เช่น Jenkins Master, Elasticsearch, PostgreSQL, MinIO — บวกเต็มเกือบ 100%"),
+         note_th="น้ำหนักสูงสุด 60% เมื่ออยู่เครื่องเดียว ลดตามจำนวนเครื่องมือร่วมเครื่องลงถึงพื้น 20%"),
     dict(id="per_commit", label_th="ทุก Commit / Push (10-30 ครั้ง/วัน)",
          runs_per_day="10-30", activity_index=0.80,
-         note_th="Trigger บ่อยมาก เกิดการซ้อนทับของงาน (overlap) สูง"),
+         note_th="Trigger บ่อย ยังซ้อนทับได้ แต่ถูกจำกัดด้วยเพดาน w_max(n) ของเครื่องนั้น"),
     dict(id="per_build",  label_th="ทุก Build / Merge (5-15 ครั้ง/วัน)",
          runs_per_day="5-15", activity_index=0.65,
          note_th="รันเป็นช่วง ๆ ระหว่างวันทำงาน มีโอกาสซ้อนทับปานกลาง"),
@@ -42,7 +43,7 @@ FREQ_CLASSES = [
          note_th="เช่น Performance/Load Test รอบใหญ่, License Audit"),
     dict(id="on_demand",  label_th="ตามคำสั่ง / รอบ Release (ไม่กี่ครั้ง/เดือน)",
          runs_per_day="<0.1", activity_index=0.00,
-         note_th="บวกที่ 50% ซึ่งเป็นค่าต่ำสุดของช่วงที่กำหนด เพราะยังต้องกันที่ไว้ให้รันได้"),
+         note_th="บวกที่ 20% ซึ่งเป็นค่าต่ำสุดของช่วงที่กำหนด เพราะยังต้องกันที่ไว้ให้รันได้"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1005,9 +1006,12 @@ PRESETS = ARCHETYPES
 # 7) ค่าคงที่ของโมเดลการคำนวณ
 # ---------------------------------------------------------------------------
 MODEL = dict(
-    # Duty Weight w = W_BASE + W_SPAN * activity_index  -> ได้ช่วง 50% - 95% ตามที่กำหนด
-    w_base=0.50,
-    w_span=0.45,
+    # Duty Weight เดี่ยว w_solo = W_BASE + W_SPAN * activity_index  -> ช่วง 20% - 60%
+    # เมื่อรวม n เครื่องมือ self-hosted บน VM เดียวกัน เพดานเหลือ w_max(n) ตาม ladder
+    w_base=0.20,
+    w_span=0.40,
+    w_cross_ladder=[0.60, 0.54, 0.48, 0.42, 0.36, 0.30, 0.24, 0.20],
+    w_cross_cap=8,
     # ทรัพยากรที่ต้องกันไว้ให้ OS + Container Runtime ของทุก VM
     os_reserve_vcpu=1,
     os_reserve_ram_gb=2,

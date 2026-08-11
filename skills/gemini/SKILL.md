@@ -86,26 +86,29 @@ Government / CII extras: on-prem or air-gap, no GPL/AGPL without a commercial li
 A = Peak-Max          MAX(minimum of every tool on that VM)
 B1 (strict)           Σ (minimum_i × w_i)
 B2 (realistic)        Σ_resident(min×w) + MAX(ci_seq) + MAX(async) + MAX(load)
-C = Resident Floor    Σ idle_ram of 24/7 daemons
+C = Resident Floor    MAX(idle) + w_max(n) × (Σ idle − MAX(idle))
 REQUIRED              MAX(A, B1|B2, C) + OS reserve → round up Allocation Ladder
 ```
 
 Planner source of truth (`scripts/catalog_data.py`):
 
-- `w = 0.50 + 0.45 × activity_index` → weight 0.50–0.95
+- Solo: `w_solo = 0.20 + 0.40 × activity_index` → 0.20–0.60
+- Shared host: `w_max(n) = 60%, 54%, 48%, 42%, 36%, 30%, 24%, 20%` for n = 1…8+ self-hosted tools on that VM (`managed=true` does not count)
+- Effective: `w_i = 0.20 + (w_max(n) − 0.20) × activity_index` (always 20–60%)
+- Default calculation mode: **realistic** (B2)
 - OS reserve = 1 vCPU, 2 GB RAM, 20 GB disk
 - Disk free ratio = 25%
 - Scale factor = `0.55×(builds/10) + 0.30×(apps/2) + 0.15×(team/10)` (floor 0.3)
 
-| freq | activity | weight |
-|------|----------|--------|
-| resident | 1.00 | 0.95 |
-| per_commit | 0.80 | 0.86 |
-| per_build | 0.65 | 0.79 |
-| per_pr | 0.55 | 0.75 |
-| nightly | 0.35 | 0.66 |
-| weekly | 0.15 | 0.57 |
-| on_demand | 0.00 | 0.50 |
+| freq | activity | w_solo (n=1) |
+|------|----------|----------------|
+| resident | 1.00 | 0.60 |
+| per_commit | 0.80 | 0.52 |
+| per_build | 0.65 | 0.46 |
+| per_pr | 0.55 | 0.42 |
+| nightly | 0.35 | 0.34 |
+| weekly | 0.15 | 0.26 |
+| on_demand | 0.00 | 0.20 |
 
 Managed cloud tools (`managed=true`, min vCPU/RAM = 0) do **not** consume local VM quota. Prefer self-hosted tools for `gov` / air-gapped; prefer SaaS only when profile `grade_pref=saas` (startup).
 
@@ -177,6 +180,89 @@ When GPL/AGPL is banned: prefer ScanCode over FOSSology, OpenSearch over Elastic
 ## What the numbers do not cover
 
 Network bandwidth, disk IOPS, license fees, and staff cost are out of scope of the planner. Compliance “pass” means a tool *can* address a control — it does not prove the control is configured or audited.
+
+# Pipeline design (planner IR → mermaid + YAML)
+
+Use this when the user asks for CI/CD architecture, pipeline structure, or working YAML.
+Do **not** invent jobs for tools that were not selected. Cite tool ids and gate ids (G-01–G-12).
+
+## PipelineIR
+
+Build an intermediate graph from the current plan, then render mermaid and YAML from that graph only.
+
+```
+selected tools + VM packing + profile + disabled jobs
+        → PipelineIR
+        → mermaid (flow / VMs / envs)
+        → .gitlab-ci.yml | .github/workflows/cicd.yml | azure-pipelines.yml | Jenkinsfile
+```
+
+Source of truth in this repo: `assets/pipeline.js` and `scripts/pipeline_gen.py` (must stay identical).
+
+IR fields:
+
+- `orchestrator`: `gitlab` if `gitlab-ce`; `github` if `github-actions` / `github-actions-runner`; `jenkins` if `jenkins-master` / `jenkins-agent`; `azure` if `azure-devops`; else `generic` (emit GitHub + GitLab)
+- `envs`: `dev`, `uat`, `prod` (+ `dr` when profile is `gov`)
+- `jobs[]`: `{id, stage, tool_id, name, needs, when, env, gates, script, enabled}`
+- A job is included **only** if at least one of its tools is selected
+- Last stage always includes `deploy-dev` (auto) → `deploy-uat` (DAST + quality gate) → `deploy-prod` (manual). `deploy-dr` for `gov`
+
+## Stage → job map (emit only when the tool is selected)
+
+| Stage | Job id | Tools (first match) | Gates |
+|------|--------|---------------------|-------|
+| 1 source | `policy` | `opa-conftest` | G-12 |
+| 2 check | `secret-scan` | `gitleaks` | G-07 |
+| 2 check | `sast-semgrep` | `semgrep` | G-01 |
+| 2 check | `sast-sonar` | `sonarqube` | G-09 |
+| 2 check | `lint` | `linters` | |
+| 2 check | `sca-trivy` | `trivy` | G-01 G-05 |
+| 2 check | `sca-owasp` | `dependency-check` | G-01 |
+| 2 check | `license` | `scancode` then `fossology` | G-08 |
+| 3 build | `compile` | `maven-gradle` | |
+| 3 build | `image` | `docker-buildkit` | |
+| 3 build | `iac` | `checkov` | G-02 |
+| 3 build | `sbom` | `syft` | G-10 |
+| 3 build | `sign` | `cosign` | G-11 |
+| 4 test | `unit` | `unit-test-runner` | G-09 |
+| 4 test | `integration` | `testcontainers` | |
+| 4 test | `dast` | `owasp-zap` (UAT) | G-01 G-02 |
+| 4 test | `api-dast` | `nuclei` (UAT) | G-01 |
+| 4 test | `a11y` | `playwright-a11y` | |
+| 4 test | `tls` | `testssl` then `cbomkit` | |
+| 4 test | `load` | `locust` | |
+| 5 store | `push-registry` | `harbor` / cloud registry | G-10 G-11 |
+| 5 store | `verify-sign` | `cosign` | G-11 |
+| 6 deploy | `deploy-dev` / `deploy-uat` / `deploy-prod` / `deploy-dr` | `argocd` / `k3s-control` / cloud K8s | G-01 G-11 |
+| 6 deploy | `waf-review` / `runtime` / `backup` | `modsecurity` / `falco` / `velero-restic` | |
+
+`needs` are filtered to jobs that actually exist.
+
+## Mermaid
+
+Always emit copyable mermaid (`flowchart LR` for stages, `flowchart TB` for VMs).
+In the planner UI the same IR is drawn as offline SVG — do **not** call a CDN.
+
+## YAML files
+
+- GitLab: `.gitlab-ci.yml` — `stages:` then one job per enabled IR job; `when: manual` on prod
+- GitHub Actions: `.github/workflows/cicd.yml` — `needs:` from IR; prod uses `environment`
+- Azure: `azure-pipelines.yml` — one stage per Blueprint stage
+- Jenkins: `Jenkinsfile` (declarative) when Jenkins tools are selected
+
+Working configs, not stubs. Match selected scanners, registry, and deploy tool.
+
+## Planner pages
+
+The web planner (schema 1.2.0+) has:
+
+1. Resource plan (W% 20–60% + per-VM ladder)
+2. Tool catalog
+3. Compliance
+4. Storage
+5. Method
+6. Architecture (mermaid + automation requirements)
+7. Pipeline YAML (job on/off + download)
 
 # Compliance Standards Register (v4 — full dump)
 

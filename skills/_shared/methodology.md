@@ -74,26 +74,29 @@ Government / CII extras: on-prem or air-gap, no GPL/AGPL without a commercial li
 A = Peak-Max          MAX(minimum of every tool on that VM)
 B1 (strict)           Σ (minimum_i × w_i)
 B2 (realistic)        Σ_resident(min×w) + MAX(ci_seq) + MAX(async) + MAX(load)
-C = Resident Floor    Σ idle_ram of 24/7 daemons
+C = Resident Floor    MAX(idle) + w_max(n) × (Σ idle − MAX(idle))
 REQUIRED              MAX(A, B1|B2, C) + OS reserve → round up Allocation Ladder
 ```
 
 Planner source of truth (`scripts/catalog_data.py`):
 
-- `w = 0.50 + 0.45 × activity_index` → weight 0.50–0.95
+- Solo: `w_solo = 0.20 + 0.40 × activity_index` → 0.20–0.60
+- Shared host: `w_max(n) = 60%, 54%, 48%, 42%, 36%, 30%, 24%, 20%` for n = 1…8+ self-hosted tools on that VM (`managed=true` does not count)
+- Effective: `w_i = 0.20 + (w_max(n) − 0.20) × activity_index` (always 20–60%)
+- Default calculation mode: **realistic** (B2)
 - OS reserve = 1 vCPU, 2 GB RAM, 20 GB disk
 - Disk free ratio = 25%
 - Scale factor = `0.55×(builds/10) + 0.30×(apps/2) + 0.15×(team/10)` (floor 0.3)
 
-| freq | activity | weight |
-|------|----------|--------|
-| resident | 1.00 | 0.95 |
-| per_commit | 0.80 | 0.86 |
-| per_build | 0.65 | 0.79 |
-| per_pr | 0.55 | 0.75 |
-| nightly | 0.35 | 0.66 |
-| weekly | 0.15 | 0.57 |
-| on_demand | 0.00 | 0.50 |
+| freq | activity | w_solo (n=1) |
+|------|----------|----------------|
+| resident | 1.00 | 0.60 |
+| per_commit | 0.80 | 0.52 |
+| per_build | 0.65 | 0.46 |
+| per_pr | 0.55 | 0.42 |
+| nightly | 0.35 | 0.34 |
+| weekly | 0.15 | 0.26 |
+| on_demand | 0.00 | 0.20 |
 
 Managed cloud tools (`managed=true`, min vCPU/RAM = 0) do **not** consume local VM quota. Prefer self-hosted tools for `gov` / air-gapped; prefer SaaS only when profile `grade_pref=saas` (startup).
 

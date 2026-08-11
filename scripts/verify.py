@@ -2,7 +2,7 @@
 """ตรวจสอบความถูกต้อง (verification suite)
 
 1. ตรวจ invariant ของ catalog (id ไม่ซ้ำ, capability มีจริง, ทุก capability มีเครื่องมือรองรับ)
-2. ตรวจว่าน้ำหนัก w อยู่ในช่วง 0.50-0.95 ตามที่โจทย์กำหนด
+2. ตรวจว่าน้ำหนัก w อยู่ในช่วง 0.20-0.60 และบันไดร่วมเครื่องทำงาน
 3. ตรวจว่า REQUIRED = MAX(A, B, C) + OS Reserve จริงทุกกรณี
 4. ตรวจว่า engine.py และ assets/engine.js ให้ผลลัพธ์ตรงกันทุกกรณีทดสอบ
 5. ตรวจว่า catalog.json ที่ commit ไว้ตรงกับ catalog_data.py
@@ -19,6 +19,7 @@ sys.path.insert(0, HERE)
 import catalog_data as C   # noqa: E402
 import engine as E         # noqa: E402
 import build_catalog       # noqa: E402
+import pipeline_gen as PG  # noqa: E402
 
 FAIL = []
 OKN = [0]
@@ -76,12 +77,32 @@ def test_catalog_invariants():
 
 
 def test_weight_range():
-    print("[2] ช่วงน้ำหนัก 50-95%")
+    print("[2] ช่วงน้ำหนัก 20-60% และบันไดร่วมเครื่อง")
     for f in C.FREQ_CLASSES:
         w = E.duty_weight(f["id"])
-        check(0.50 - 1e-9 <= w <= 0.95 + 1e-9, f"น้ำหนักของ {f['id']} = {w} หลุดช่วง 0.50-0.95")
-    check(abs(E.duty_weight("resident") - 0.95) < 1e-9, "resident ต้องได้ 0.95 พอดี")
-    check(abs(E.duty_weight("on_demand") - 0.50) < 1e-9, "on_demand ต้องได้ 0.50 พอดี")
+        check(0.20 - 1e-9 <= w <= 0.60 + 1e-9, f"น้ำหนักเดี่ยวของ {f['id']} = {w} หลุดช่วง 0.20-0.60")
+    check(abs(E.duty_weight("resident") - 0.60) < 1e-9, "resident เดี่ยวต้องได้ 0.60 พอดี")
+    check(abs(E.duty_weight("on_demand") - 0.20) < 1e-9, "on_demand เดี่ยวต้องได้ 0.20 พอดี")
+    check(abs(E.cross_max(1) - 0.60) < 1e-9, "w_max(1) ต้องเป็น 0.60")
+    check(abs(E.cross_max(8) - 0.20) < 1e-9, "w_max(8) ต้องเป็น 0.20")
+    check(abs(E.cross_max(20) - 0.20) < 1e-9, "w_max ต้องไม่ต่ำกว่า 0.20 เมื่อ n > 8")
+    check(abs(E.colocate_weight("resident", 1) - 0.60) < 1e-9, "resident n=1 ต้อง 60%")
+    check(abs(E.colocate_weight("resident", 8) - 0.20) < 1e-9, "resident n=8 ต้อง 20%")
+    check(abs(E.colocate_weight("on_demand", 1) - 0.20) < 1e-9, "on_demand ต้องพื้น 20%")
+    check(abs(E.colocate_weight("on_demand", 8) - 0.20) < 1e-9, "on_demand n=8 ยังพื้น 20%")
+    self_hosted = [t["id"] for t in C.TOOLS if not t.get("managed")][:8]
+    r1 = E.colocate(self_hosted[:1], mode="realistic")
+    check(abs(r1["tools"][0]["weight"] - 0.60) < 1e-9 or r1["tools"][0]["freq"] != "resident",
+          "เครื่องเดียวต้องใช้เพดาน 60% เมื่อเป็น resident (หรือน้อยกว่าถ้าไม่ใช่ resident)")
+    r8 = E.colocate(self_hosted, mode="realistic")
+    for row in r8["tools"]:
+        check(0.20 - 1e-9 <= row["weight"] <= 0.60 + 1e-9,
+              f"{row['tool_id']} w={row['weight']} หลุด 20-60 เมื่อ n=8")
+    if r8["tools"]:
+        idles = [x["idle_ram"] for x in r8["tools"] if x["resident"]]
+        if idles:
+            check(r8["method_c"]["ram_gb"] + 1e-9 >= max(idles),
+                  "C ต้องไม่ต่ำกว่า idle ของ daemon ที่หนักที่สุด")
 
 
 def test_max_rule():
@@ -155,7 +176,7 @@ def test_js_parity():
         json.dump(cases, fh, ensure_ascii=False)
         cpath = fh.name
     proc = subprocess.run(["node", os.path.join(HERE, "verify_engines.mjs"), cpath],
-                          capture_output=True, text=True, cwd=ROOT)
+                          capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     if proc.returncode != 0:
         FAIL.append("รัน verify_engines.mjs ไม่สำเร็จ: " + proc.stderr[-2000:])
         print("  [FAIL] node error:\n" + proc.stderr[-2000:])
@@ -378,18 +399,34 @@ def test_standalone_bundle():
     body = html[i:j]
     check('id="cicd-catalog"' in html, "ไม่ได้ฝัง catalog script")
     check("window.__STANDALONE__" in html, "ไม่ได้ตั้ง __STANDALONE__")
-    # ห้ามมี HTML comment ในสคริปต์ (module ไม่อนุญาต) และห้ามมี </script> ปิดกลางทาง
-    check("<!--" not in body, "มี HTML comment อยู่ในสคริปต์ — module จะพังทันที")
-    check("-->" not in body, "มี --> อยู่ในสคริปต์ — module จะพังทันที")
+    # ห้ามมี HTML comment ในสคริปต์ — ทำให้เบราว์เซอร์ตัดสคริปต์กลางทาง
+    # ลูกศร mermaid " --> " ในสตริงใช้ได้ จึงไม่บล็อกลำพัง
+    check("<!--" not in body, "มี HTML comment อยู่ในสคริปต์ — หน้าจะพังทันที")
     import re as _re
     check(not _re.search(r"^\s*import\s+[\w{*]", body, _re.M),
           "ยังมี import statement หลงเหลือใน bundle")
     check(not _re.search(r"^\s*export\s+", body, _re.M),
           "ยังมี export statement หลงเหลือใน bundle")
     check("window.__CATALOG__" in html, "ไม่ได้ฝัง catalog ลงในไฟล์")
+    check("panel-architecture" in html and "panel-pipeline" in html,
+          "standalone ไม่มีหน้าสถาปัตยกรรม / Pipeline YAML")
+    check("function buildPipelineIR" in html, "ไม่ได้ bundle pipeline.js")
     bad = [u for u in __import__("re").findall(r'(?:src|href)="([^"]+)"', html)
            if u.startswith(("http://", "https://", "//"))]
     check(not bad, f"ไฟล์ standalone ยังอ้างอิงภายนอก: {bad}")
+    # catalog ที่ฝังต้องเป็น JSON ใช้ได้ — นี่คือจุดที่หน้าเคยพังรอบที่แล้ว
+    m = _re.search(r"window\.__CATALOG__=(.+?);</script>", html)
+    check(bool(m), "ไม่พบ window.__CATALOG__=... ใน standalone")
+    if m:
+        try:
+            cat = json.loads(m.group(1))
+            check(isinstance(cat.get("tools"), list) and len(cat["tools"]) >= 70,
+                  f"catalog ที่ฝังมีเครื่องมือ {len(cat.get('tools') or [])} รายการ")
+            check(cat.get("schema_version") == C.SCHEMA_VERSION,
+                  f"schema ที่ฝัง {cat.get('schema_version')} != {C.SCHEMA_VERSION}")
+            check(cat.get("model", {}).get("w_base") == 0.20, "catalog ที่ฝังยังเป็น w_base เก่า")
+        except Exception as exc:
+            check(False, "parse catalog ที่ฝังไม่สำเร็จ: " + str(exc)[:200])
     os.unlink(out)
 
 
@@ -414,6 +451,54 @@ def test_compliance_sanity():
           "แนะนำเครื่องมือที่ติดตั้งอยู่แล้ว")
 
 
+def test_pipeline_parity():
+    print("[10] PipelineIR / YAML / mermaid ตรงกันระหว่าง Python กับ JS")
+    if subprocess.run(["node", "--version"], capture_output=True).returncode != 0:
+        print("  [SKIP] ไม่มี node ในเครื่องนี้")
+        return
+    fixtures = [
+        dict(id="gov-core", tools=["gitea", "jenkins-master", "gitleaks", "semgrep",
+                                   "trivy", "docker-buildkit", "syft", "cosign",
+                                   "owasp-zap", "harbor", "argocd"],
+             profile="gov", disabled=[]),
+        dict(id="ent-gh", tools=["github-actions", "gitleaks", "trivy", "unit-test-runner"],
+             profile="enterprise", disabled=["secret-scan"]),
+        dict(id="empty", tools=[], profile="internal", disabled=[]),
+    ]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as fh:
+        json.dump(fixtures, fh, ensure_ascii=False)
+        cpath = fh.name
+    proc = subprocess.run(["node", os.path.join(HERE, "verify_pipeline.mjs"), cpath],
+                          capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+    if proc.returncode != 0:
+        FAIL.append("รัน verify_pipeline.mjs ไม่สำเร็จ: " + (proc.stderr or proc.stdout)[-2000:])
+        print("  [FAIL] node error:\n" + (proc.stderr or proc.stdout)[-2000:])
+        os.unlink(cpath)
+        return
+    js = {x["id"]: x for x in json.loads(proc.stdout)}
+    for fx in fixtures:
+        ir = PG.build_pipeline_ir(fx["tools"], profile=fx["profile"], disabled=fx["disabled"])
+        files = PG.emit_all(ir)
+        j = js.get(fx["id"])
+        check(j is not None, f"{fx['id']}: JS ไม่คืนผล")
+        if not j:
+            continue
+        check([x["id"] for x in ir["jobs"]] == j["job_ids"], f"{fx['id']}: ลำดับ job ไม่ตรง")
+        check([x["enabled"] for x in ir["jobs"]] == j["enabled"], f"{fx['id']}: enabled ไม่ตรง")
+        check(files["gitlab"] == j["gitlab"], f"{fx['id']}: GitLab YAML ไม่ตรง")
+        check(files["github"] == j["github"], f"{fx['id']}: GitHub YAML ไม่ตรง")
+        check(files["mermaid_flow"] == j["mermaid_flow"], f"{fx['id']}: mermaid flow ไม่ตรง")
+        if ir["jobs"]:
+            check(any(x["id"] == "deploy-uat" for x in ir["jobs"]),
+                  f"{fx['id']}: ต้องมี deploy-uat")
+            check(any(x["id"] == "deploy-prod" for x in ir["jobs"]),
+                  f"{fx['id']}: ต้องมี deploy-prod")
+        job_tools = {x["tool_id"] for x in ir["jobs"] if x["tool_id"]}
+        check(job_tools <= set(fx["tools"]),
+              f"{fx['id']}: มี tool ใน IR ที่ไม่ได้เลือก: {sorted(job_tools - set(fx['tools']))}")
+    os.unlink(cpath)
+
+
 def main():
     print("=" * 72)
     print("CI/CD Resource Planner — verification suite")
@@ -431,6 +516,7 @@ def main():
     test_archetypes_reach_compliance()
     test_tool_compliance_mapping()
     test_compliance_sanity()
+    test_pipeline_parity()
     print("-" * 72)
     print(f"ผ่าน {OKN[0]} assertion · ล้มเหลว {len(FAIL)}")
     if FAIL:
