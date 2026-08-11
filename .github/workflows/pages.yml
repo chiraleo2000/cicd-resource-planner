@@ -1,0 +1,75 @@
+name: Deploy to GitHub Pages
+
+# เผยแพร่โปรแกรมวางแผนขึ้น GitHub Pages
+# ต้องเปิด Settings -> Pages -> Source = "GitHub Actions" ครั้งเดียวก่อนใช้งาน
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt
+
+      - name: สร้าง catalog.json ใหม่จาก source
+        run: python3 scripts/build_catalog.py
+
+      - name: สร้าง Excel และ HTML แบบ standalone
+        run: |
+          python3 scripts/build_xlsx.py dist/CICD_Tool_Resource_Matrix.xlsx
+          python3 scripts/build_standalone.py dist/planner-standalone.html
+
+      - name: สร้างรายงาน Compliance เป็นหน้าเว็บ
+        run: |
+          mkdir -p _site/reports
+          python3 scripts/check_compliance.py plans/*.json --warn-only \
+            > _site/reports/compliance.md || true
+
+      - name: ประกอบโฟลเดอร์ _site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp planner-standalone.html _site/ 2>/dev/null || true
+          cp -r assets _site/ 2>/dev/null || true
+          cp -r data _site/ 2>/dev/null || true
+          cp -r web _site/ 2>/dev/null || true
+          mkdir -p _site/dist
+          cp dist/CICD_Tool_Resource_Matrix.xlsx _site/dist/
+          cp dist/planner-standalone.html _site/dist/
+          cp -r plans _site/ 2>/dev/null || true
+          cp README.md _site/ 2>/dev/null || true
+          touch _site/.nojekyll
+          ls -R _site | head -50
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

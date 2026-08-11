@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CI/CD Resource &amp; Compliance Planner</title>
+<meta name="description" content="เครื่องมือวางแผนทรัพยากรและตรวจ Compliance สำหรับ CI/CD Pipeline ภาครัฐและเอกชนไทย">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f3864'/%3E%3Crect x='7' y='19' width='5' height='7' rx='1.5' fill='%23ed7d31'/%3E%3Crect x='14' y='13' width='5' height='13' rx='1.5' fill='%23ffffff'/%3E%3Crect x='21' y='7' width='5' height='19' rx='1.5' fill='%23ed7d31'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brandmark"><span class="dot"></span> CI/CD Resource &amp; Compliance Planner</div>
+  <div class="spacer"></div>
+  <div class="btnrow noprint">
+    <select id="presetSel" title="โหลดผังเครื่องอ้างอิง" style="width:auto"></select>
+    <button class="btn small" id="btnExportJson">ส่งออก JSON</button>
+    <button class="btn small" id="btnExportCsv">ส่งออก CSV</button>
+    <button class="btn small" id="btnPrint">พิมพ์ / PDF</button>
+    <button class="btn small ghost" id="btnTheme" title="สลับโหมดสว่าง/มืด">◐</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="tabs noprint" role="tablist">
+    <button role="tab" data-tab="plan" aria-selected="true">1. วางแผนทรัพยากร</button>
+    <button role="tab" data-tab="catalog" aria-selected="false">2. ตารางเครื่องมือ</button>
+    <button role="tab" data-tab="compliance" aria-selected="false">3. Compliance &amp; Automation</button>
+    <button role="tab" data-tab="storage" aria-selected="false">4. Storage ระยะยาว</button>
+    <button role="tab" data-tab="method" aria-selected="false">5. วิธีคำนวณ</button>
+  </nav>
+
+  <!-- ================================================= PANEL 1 : PLANNER -->
+  <section class="panel active" id="panel-plan">
+
+    <div id="printHead" class="card" style="display:none"></div>
+
+    <div class="card">
+      <h2><span class="stepno">1</span> ข้อมูลโครงการที่กำลังประมาณการ</h2>
+      <p class="hint">แบบฟอร์มกลาง ใช้ได้ทุกโครงการ — ชื่อที่กรอกจะไปปรากฏในไฟล์ที่ส่งออกและตอนพิมพ์</p>
+      <div class="grid3">
+        <label class="field"><span class="lbl">ชื่อโครงการ</span>
+          <input type="text" id="pjName" placeholder="เช่น ระบบสารสนเทศ ก. ระยะที่ 2"></label>
+        <label class="field"><span class="lbl">หน่วยงาน / เจ้าของระบบ</span>
+          <input type="text" id="pjOrg" placeholder="เช่น สำนักงาน ก."></label>
+        <label class="field"><span class="lbl">สภาพแวดล้อม</span>
+          <div class="togrow" id="pjEnvRow"></div></label>
+        <label class="field" style="grid-column:1/-1"><span class="lbl">หมายเหตุ / ข้อจำกัดของโครงการ</span>
+          <input type="text" id="pjNote" placeholder="เช่น On-premise ไม่มี GPU, ออก internet ผ่าน Proxy เท่านั้น"></label>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <div><div class="lbl2">ประเภทโครงการ</div><div class="togrow" id="profileRow"></div>
+          <div class="hint" id="profileHint"></div></div>
+        <div><div class="lbl2">ระดับผลกระทบของระบบ (ตามมาตรฐานขั้นต่ำ พ.ศ. 2566)</div>
+          <div class="togrow" id="impactRow"></div>
+          <div class="hint">ยิ่งสูง ยิ่งมีมาตรการบังคับเพิ่ม เช่น VAPT, Third Party Management, แผนกู้คืนระบบ</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="stepno">2</span> เลือกมาตรฐานที่โครงการต้องปฏิบัติ</h2>
+      <p class="hint">ติ๊กเลือกได้ทีละฉบับ ไม่ใช่เลือกเป็นกลุ่มรวม — แต่ละฉบับผูกกับ “มาตรการที่ต้องทำ” ของตัวเอง
+        เปลี่ยนการเลือกแล้วรายการเครื่องมือและทรัพยากรจะคำนวณใหม่ทันที</p>
+      <div class="btnrow noprint" style="margin-bottom:10px">
+        <span class="lbl2" style="margin:0">ชุดสำเร็จ:</span>
+        <span id="fwPresets" class="btnrow"></span>
+        <button class="btn small ghost" id="fwAll">เลือกทั้งหมด</button>
+        <button class="btn small ghost" id="fwNone">ล้างทั้งหมด</button>
+        <button class="btn small ghost" id="fwRestore">คืนค่าตามประเภทโครงการ</button>
+      </div>
+      <div class="grid2">
+        <div>
+          <div class="lbl2">กฎหมายและมาตรฐานภายในประเทศไทย</div>
+          <div id="fwTh"></div>
+        </div>
+        <div>
+          <div class="lbl2">มาตรฐานสากล</div>
+          <div id="fwIntl"></div>
+        </div>
+      </div>
+      <div id="fwSummary" style="margin-top:12px"></div>
+      <details class="acc" style="margin-top:10px">
+        <summary>มาตรการที่ต้องทำจากมาตรฐานที่เลือก (คำนวณให้อัตโนมัติ)</summary>
+        <div class="scrollx" style="max-height:420px;margin-top:8px">
+          <table class="tbl" id="ctrlTbl"></table></div>
+      </details>
+      <details class="acc">
+        <summary>Capability ที่ต้องมี และเครื่องมือที่ตอบได้</summary>
+        <div class="scrollx" style="max-height:420px;margin-top:8px">
+          <table class="tbl" id="capTbl"></table></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2><span class="stepno">3</span> เงื่อนไขและข้อจำกัดของโครงการ</h2>
+      <div class="grid2">
+        <div>
+          <div class="lbl2">นโยบายลิขสิทธิ์ที่ห้ามใช้</div>
+          <div class="togrow" id="licRow"></div>
+          <div class="hint">ตัดเครื่องมือกลุ่มนั้นออกจากรายการที่ระบบแนะนำ —
+            จำแนกเป็นชั้นก่อน จึงไม่ตัด LGPL ทิ้งไปพร้อม GPL</div>
+
+          <div class="lbl2" style="margin-top:12px">ข้อจำกัดของสภาพแวดล้อม</div>
+          <div class="togrow" id="envRow"></div>
+          <div class="hint">“มี…ส่วนกลางแล้ว” = ถือว่า capability นั้นถูกครอบคลุมโดยระบบขององค์กร
+            ไม่ต้องติดตั้งซ้ำในโครงการนี้</div>
+        </div>
+        <div>
+          <div class="lbl2">ปริมาณงานจริงของโครงการ</div>
+          <div class="grid3" style="gap:8px">
+            <label class="field" style="margin:0"><span class="lbl">Build ต่อวัน</span>
+              <input type="number" id="wlBuilds" min="1" max="2000" step="1"></label>
+            <label class="field" style="margin:0"><span class="lbl">จำนวนแอปพลิเคชัน</span>
+              <input type="number" id="wlApps" min="1" max="200" step="1"></label>
+            <label class="field" style="margin:0"><span class="lbl">จำนวนคนในทีม</span>
+              <input type="number" id="wlTeam" min="1" max="1000" step="1"></label>
+          </div>
+          <div class="hint" id="scaleHint"></div>
+          <div class="togrow" id="scaleModeRow" style="margin-top:6px"></div>
+          <label class="field" id="scaleManualWrap" style="margin-top:6px;display:none">
+            <span class="lbl">Scale Factor กำหนดเอง: <b id="scaleVal">1.0×</b></span>
+            <input type="range" id="scaleRange" min="0.3" max="20" step="0.1" value="1"></label>
+
+          <div class="lbl2" style="margin-top:12px">โหมดคำนวณเงื่อนไขที่ 2</div>
+          <div class="togrow" id="modeRow"></div>
+
+          <div class="lbl2" style="margin-top:12px">ช่วงเวลาประเมินพื้นที่จัดเก็บ</div>
+          <div class="togrow" id="horizonRow"></div>
+
+          <div class="lbl2" style="margin-top:12px">Log Retention ที่บังคับ (วัน)</div>
+          <input type="number" id="retentionInput" min="0" step="30"
+                 placeholder="ว่าง = ใช้ค่าของแต่ละเครื่องมือ">
+          <div class="hint" id="retentionHint"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="margin:0"><span class="stepno">4</span> เครื่องมือที่ต้องติดตั้ง</h2>
+        <div class="btnrow noprint">
+          <button class="btn accent" id="btnAutoTools">เลือกให้อัตโนมัติจากมาตรฐานที่เลือก</button>
+          <button class="btn" id="btnAddMissing">เพิ่มเฉพาะตัวที่ยังขาด</button>
+          <button class="btn ghost" id="btnClearTools">ล้างเครื่องมือทั้งหมด</button>
+        </div>
+      </div>
+      <div id="coverBar" style="margin-top:10px"></div>
+      <div class="btnrow noprint" style="margin:10px 0">
+        <span class="lbl2" style="margin:0">แสดง:</span>
+        <div class="togrow" id="toolViewRow"></div>
+        <input type="text" id="qToolPlan" placeholder="ค้นหาเครื่องมือ" style="width:220px">
+      </div>
+      <div id="toolPicker"></div>
+    </div>
+
+    <div class="card">
+      <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="margin:0"><span class="stepno">5</span> จัดลงเครื่องและผลการคำนวณ</h2>
+        <div class="btnrow noprint">
+          <label class="field" style="margin:0;width:120px"><span class="lbl">จำนวน VM</span>
+            <input type="number" id="vmTarget" min="1" max="12" step="1"></label>
+          <button class="btn primary" id="btnAutoLayout">จัดเครื่องมือลง VM อัตโนมัติ</button>
+          <button class="btn" id="btnAddVm">+ เพิ่ม VM</button>
+        </div>
+      </div>
+      <div class="grid3" id="fleetTiles" style="margin-top:12px"></div>
+      <div id="fleetChart" style="margin-top:14px"></div>
+      <div id="fleetWarn"></div>
+    </div>
+
+    <div id="vmList" class="grid2"></div>
+
+    <div class="card">
+      <h2>เปรียบเทียบผังเครื่องอ้างอิง</h2>
+      <p class="hint">ประมาณการเบื้องต้นของแต่ละผัง คำนวณด้วยเงื่อนไขที่ตั้งไว้ด้านบน —
+        กด “ใช้ผังนี้” เพื่อโหลดเข้าไปแก้ต่อ (จะแทนที่รายการเครื่องมือและผัง VM ปัจจุบัน)</p>
+      <div class="scrollx" style="max-height:none"><table class="tbl" id="archTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-catalog">
+    <div class="card">
+      <h2>ตารางเครื่องมือ CI/CD ทุกประเภท พร้อม Resource Requirements (Minimum)</h2>
+      <p class="hint" id="catalogMeta"></p>
+      <p class="hint" id="catalogCount" style="font-weight:700;color:var(--text-primary)"></p>
+      <div class="grid3" style="margin-bottom:10px">
+        <label class="field"><span class="lbl">ค้นหา</span>
+          <input type="text" id="qTool" placeholder="ชื่อเครื่องมือ / หมวด / capability"></label>
+        <label class="field"><span class="lbl">Stage</span><select id="fStage"></select></label>
+        <label class="field"><span class="lbl">Core / Optional</span>
+          <select id="fCore"><option value="">ทั้งหมด</option><option value="Core">Core</option>
+          <option value="Optional">Optional</option></select></label>
+        <label class="field"><span class="lbl">เหมาะกับประเภทโครงการ</span><select id="fProfile"></select></label>
+        <label class="field"><span class="lbl">ช่วยตอบมาตรฐาน</span><select id="fFramework"></select></label>
+        <label class="field"><span class="lbl">Capability ที่ต้องการ</span><select id="fCap"></select></label>
+        <label class="field"><span class="lbl">ประเภทลิขสิทธิ์</span><select id="fLic"></select></label>
+      </div>
+      <div class="scrollx"><table class="tbl" id="catalogTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-compliance">
+    <div class="card">
+      <h2>ผลตรวจ Compliance และการเลือกเครื่องมืออัตโนมัติ</h2>
+      <p class="hint">คำนวณจากชุดเครื่องมือทั้งหมดที่วางไว้ในแท็บ 1 เทียบกับกฎหมายและมาตรฐานที่บังคับใช้กับประเภทโครงการที่เลือก</p>
+      <div class="grid3" id="compTiles"></div>
+    </div>
+    <div class="card">
+      <h3>คะแนนแยกตามมาตรฐานรายฉบับ</h3>
+      <p class="hint">แต่ละฉบับคิดคะแนนจากมาตรการของตัวเองเท่านั้น จึงเห็นได้ว่าฉบับไหนยังไม่ผ่านและติดข้อใด</p>
+      <div class="scrollx"><table class="tbl" id="fwScoreTbl"></table></div>
+    </div>
+    <div class="card">
+      <h3>Automation: เครื่องมือที่ควรเพิ่มเพื่อให้ผ่านมาตรฐาน</h3>
+      <p class="hint">เลือกด้วยอัลกอริทึม greedy set-cover — เครื่องมือที่ปิดช่องว่างได้มากที่สุดต่อทรัพยากรที่เพิ่มน้อยที่สุด</p>
+      <div id="recoList"></div>
+    </div>
+    <div class="card">
+      <h3>มาตรการทั้งหมดที่ต้องทำ และสถานะ</h3>
+      <div class="scrollx"><table class="tbl" id="ruleTbl"></table></div>
+    </div>
+    <div class="card">
+      <h3>ทะเบียนกฎหมายและมาตรฐานทั้งหมดในระบบ</h3>
+      <p class="hint" id="fwNote"></p>
+      <div class="scrollx" style="max-height:none"><table class="tbl" id="fwTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-storage">
+    <div class="card">
+      <h2>ผลลัพธ์ระยะยาวของพื้นที่จัดเก็บ</h2>
+      <p class="hint" id="storageMeta"></p>
+      <div id="storageChart"></div>
+    </div>
+    <div class="card">
+      <h3>รายละเอียดต่อ VM</h3>
+      <div class="scrollx"><table class="tbl" id="storageVmTbl"></table></div>
+    </div>
+    <div class="card">
+      <h3>รายละเอียดต่อเครื่องมือ (เฉพาะที่เลือกใช้)</h3>
+      <div class="scrollx"><table class="tbl" id="storageToolTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-method">
+    <div class="card">
+      <h2>วิธีคำนวณกรณีเครื่องเดียวแชร์หลายเครื่องมือ</h2>
+
+      <h3>เงื่อนไขที่ 1 — A: Peak-Max (ค่า minimum ที่สูงสุด)</h3>
+      <p><code>A = MAX( minimum ของทุกเครื่องมือบนเครื่องนั้น )</code></p>
+      <p>ตีความว่า ณ เวลาใดเวลาหนึ่งมีเครื่องมือเพียงตัวเดียวที่ทำงานหนักที่สุด
+      เป็นพื้นขั้นต่ำที่ต้องมีเพื่อให้เครื่องมือที่หนักที่สุดรันผ่านได้ ถ้าต่ำกว่านี้จะมีอย่างน้อยหนึ่งเครื่องมือที่รันไม่ได้เลย</p>
+
+      <h3>เงื่อนไขที่ 2 — B: Weighted-Sum 50-95% ตามความถี่การรัน</h3>
+      <p><code>w = w_base + w_span × activity_index = 0.50 + 0.45 × activity_index</code>
+        &nbsp;→&nbsp; ได้ช่วง <b>0.50 ถึง 0.95</b> ตามที่โจทย์กำหนด</p>
+      <p><code>B1 (strict) = Σ ( minimum_i × w_i )</code> — บวกทุกเครื่องมือ</p>
+      <p><code>B2 (realistic) = Σ<sub>resident</sub>( min × w ) + MAX<sub>ci_seq</sub> + MAX<sub>async</sub> + MAX<sub>load</sub></code></p>
+      <p>เหตุผลของ B2: ขั้นตอนภายใน Pipeline รอบเดียวกัน (SAST → Secret Scan → SCA → Build → Test)
+      ทำงาน<b>เรียงต่อกัน</b> ไม่ได้รันพร้อมกัน จึงใช้ค่าสูงสุดของกลุ่มแทนการบวก
+      ส่วน daemon ที่รันค้าง 24/7 ต้องบวกทุกตัวเพราะจองหน่วยความจำถาวรจริง</p>
+      <div class="scrollx" style="max-height:none"><table class="tbl" id="freqTbl"></table></div>
+
+      <h3 style="margin-top:16px">ตัวตรวจ — C: Resident Floor</h3>
+      <p><code>C = Σ idle_ram ของเครื่องมือที่รันค้าง 24/7</code></p>
+      <p>ถ้า A และ B ได้ค่าต่ำกว่า C แปลว่าเครื่องบูตขึ้นมาเฉย ๆ หน่วยความจำก็เต็มแล้ว
+      จึงต้องยกผลลัพธ์ขึ้นเป็น C เป็นการตรวจความเป็นไปได้ทางกายภาพ</p>
+
+      <h3>ผลลัพธ์สุดท้าย</h3>
+      <p><code>REQUIRED = MAX(A, B, C) + OS Reserve</code>
+      &nbsp;→&nbsp; ปัดขึ้นตาม Allocation Ladder</p>
+      <p>ตรงตามโจทย์ที่ระบุว่า “ต้องเป็นค่าที่มากสุดสำหรับ minimum เท่านั้น”
+      โดย OS Reserve คือทรัพยากรที่กันไว้ให้ระบบปฏิบัติการและ Container Runtime</p>
+
+      <h3>พื้นที่จัดเก็บ</h3>
+      <p><code>Disk OS = (OS Reserve + Σ Install) / (1 − Disk Free Ratio)</code></p>
+      <p><code>Data(h) = GB/วัน × Scale × (1 + Growth)<sup>h/12</sup> × MIN(Retention, h × 30.44) × (1 + Index Overhead)</code></p>
+      <p><code>Disk Data = Data(h) / (1 − Disk Free Ratio)</code></p>
+      <p>เหตุผลของ <code>MIN(Retention, ...)</code>: ระบบจะเข้าสู่สภาวะคงตัวเมื่อถึงรอบ retention
+      (ข้อมูลเก่าถูกลบเท่าที่ข้อมูลใหม่เข้ามา) แต่อัตราการผลิตข้อมูลต่อวันยังโตขึ้นทุกปีตาม Growth
+      จึงต้องคูณตัวคูณการเติบโตเข้าไปด้วย</p>
+
+      <h3>พารามิเตอร์ของโมเดล</h3>
+      <div class="scrollx" style="max-height:none"><table class="tbl" id="modelTbl"></table></div>
+
+      <h3 style="margin-top:16px">ข้อจำกัดที่ต้องรู้ก่อนนำตัวเลขไปใช้</h3>
+      <ol class="hint" style="font-size:12.5px;line-height:1.8">
+        <li>ค่า minimum เป็นค่าตั้งต้นจากเอกสารติดตั้งของผู้พัฒนาแต่ละเครื่องมือ
+            รวมกับค่าที่พบจากการใช้งานจริงระดับ UAT/Production ขนาดเล็ก
+            <b>ไม่ใช่ผลวัดจากระบบของท่าน</b> — ต้องวัด baseline จริง 2-4 สัปดาห์หลังติดตั้ง
+            แล้วปรับตัวเลขในไฟล์ <code>scripts/catalog_data.py</code> และ build ใหม่</li>
+        <li>คอลัมน์ “มาตรฐานที่ช่วยตอบ” บอกว่าเครื่องมือ<b>มีความสามารถ</b>ตรงกับข้อกำหนดใด
+            ไม่ได้รับประกันว่า<b>ตั้งค่าถูกต้อง</b> — การผ่านมาตรฐานจริงยังต้องมีการตั้งค่า กระบวนการ
+            และหลักฐานการตรวจสอบประกอบด้วย</li>
+        <li>โหมด strict ให้ค่าสูงกว่าความเป็นจริงอย่างมากบนเครื่องที่มีเครื่องมือ ephemeral จำนวนมาก เพราะบวกทุกตัวแม้ในความจริงจะรันเรียงต่อกัน</li>
+        <li>ปริมาณข้อมูลต่อวันอ่อนไหวต่อระดับ log และจำนวน build มาก ต้องตั้ง Scale Factor ให้ตรงกับของจริงก่อนอ่านผล</li>
+        <li>โมเดลนี้<b>ไม่ครอบคลุม</b> network bandwidth, disk IOPS, ค่า license และค่าบุคลากร ซึ่งต้องประเมินแยก</li>
+        <li>เครื่องมือที่เป็น GPL/AGPL (MinIO, Grafana, Zabbix, FOSSology, Wazuh, testssl.sh) ขัดกับข้อห้ามใช้ GPL/AGPL
+            ของโครงการภาครัฐบางแห่ง ต้องตรวจเงื่อนไขการใช้งานหรือขอ commercial license ก่อน</li>
+      </ol>
+
+      <h3>ที่มาของข้อมูล</h3>
+      <ul class="hint" style="font-size:12.5px;line-height:1.8" id="srcList"></ul>
+    </div>
+  </section>
+
+</div>
+
+<footer class="foot">
+  <div id="footMeta"></div>
+  <div>ข้อมูลทั้งหมดอยู่ในไฟล์ <code>data/catalog.json</code> — แก้ไขที่ <code>scripts/catalog_data.py</code> แล้วรัน <code>python3 scripts/build_catalog.py</code></div>
+</footer>
+
+<div class="tooltip" id="tip" role="status" aria-live="polite"></div>
+
+<script type="module" src="assets/app.js"></script>
+<noscript><p style="padding:20px">โปรแกรมนี้ต้องเปิด JavaScript — หากใช้ไม่ได้ กรุณาดูไฟล์ Excel ใน <code>dist/</code> แทน</p></noscript>
+</body>
+</html>

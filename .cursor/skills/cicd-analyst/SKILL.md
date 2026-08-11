@@ -1,14 +1,16 @@
-# CI/CD Implementation Analysis — VS Code GitHub Copilot
+---
+name: cicd-analyst
+description: >-
+  Analyse Thai and international DevSecOps CI/CD work — resource sizing,
+  compliance mapping (Cybersecurity Act 2562, PDPA, NCSA, OWASP, NIST, ISO),
+  pipeline design, and working GitLab/GitHub/Jenkins/IaC configs. Use when the
+  user mentions CI/CD, DevSecOps, TOR, SonarQube, Trivy, Harbor, SBOM, SAST,
+  DAST, compliance gates, or government pipeline requirements.
+---
 
-> **Version:** 3.0.0 | **Platform:** VS Code + GitHub Copilot
-> **Optimized For:** Copilot Chat, `@workspace`, `#file`, `/fix`, `/explain`, `/tests`
+# CI/CD Implementation Analyst (Cursor skill)
 
-## Copilot-specific behaviour
-
-- `@workspace` — find existing CI/CD, Docker, IaC, and security config first.
-- `#file` — treat attached TOR/spec/pipeline as ground truth.
-- Inline complete YAML, Dockerfile, Terraform, and Ansible — no `...` placeholders.
-- `/fix` pipeline YAML, `/explain` a stage or rule ID, `/tests` for pipeline validation jobs.
+Follow the shared methodology below. Scan the workspace first. Generate real files, not templates. Cite rule IDs. Ask before assuming. Rebuild this skill after catalog changes with `python skills/compile_skills.py`.
 
 # DevSecOps CI/CD — shared methodology
 
@@ -771,13 +773,3 @@ Treat as **inputs to analyse**, not as content to republish. The planner and ski
 | Cursor | `.cursor/skills/cicd-analyst/SKILL.md` and/or `.cursorrules`; `@` the xlsx/PDF in chat |
 | VS Code Copilot | `.github/copilot-instructions.md`; attach files with `#file` |
 | Kiro | `.kiro/skills/cicd-analyst/SKILL.md` + steering if present |
-
-## VS Code outputs
-
-Same file set as Cursor: pipeline YAML, Docker, IaC, Markdown reports, Mermaid diagrams.
-
-### Setup
-
-1. Copy `skills/vscode/.github/copilot-instructions.md` to the target repo as `.github/copilot-instructions.md`
-2. Optional extensions: YAML, Docker, HashiCorp Terraform, GitLab Workflow, GitHub Actions
-3. Rebuild: `python skills/compile_skills.py`

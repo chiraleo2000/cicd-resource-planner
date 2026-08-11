@@ -11,7 +11,7 @@
 - Resource matrix (.xlsx) — CICD_Tool_Resource_Matrix
 
 ## วิธีใช้
-1. เปิด NotebookLM notebook ที่ใช้ `partnership-intelligence-pre-mou-agent-knowledge/SKILL.md`
+1. เปิด NotebookLM notebook ที่ใช้ `skills/gemini/SKILL.md`
 2. Export Study Guide / FAQ / Audio Overview
 3. วางไฟล์ไว้ใน folder นี้เพื่อเก็บเป็น reference
 4. Import CSV เข้า Google Sheets สำหรับแชร์ทีม

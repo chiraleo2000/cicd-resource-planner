@@ -1,0 +1,65 @@
+{
+  "name": "ผัง 2 เครื่อง — ขนาดเล็ก / UAT / Internal Dev",
+  "description": "เหมาะกับทีม 5-15 คน, 1-3 แอปพลิเคชัน, ~10 builds/วัน — ยอมรับความเสี่ยงที่ Build กับ Log แย่งทรัพยากรกันได้ในบางช่วง",
+  "profile": "internal",
+  "impact": "low",
+  "mode": "realistic",
+  "horizon_months": 36,
+  "scale_factor": 1.0,
+  "retention_days": 90,
+  "frameworks": [
+    "TH-CCA-2560",
+    "OWASP-TOP10-2025",
+    "NIST-SSDF-800-218",
+    "CIS-CONTROLS-8"
+  ],
+  "license_blocklist": [
+    "strong-copyleft",
+    "network-copyleft"
+  ],
+  "external_caps": [],
+  "min_score": 100,
+  "allow_resource_gap": false,
+  "vms": [
+    {
+      "name": "CI-CONTROL-01",
+      "role": "บริการที่รันค้างตลอด: Git, Pipeline, SAST, ฐานข้อมูล, Log",
+      "tools": [
+        "gitlab-ce",
+        "sonarqube",
+        "k3s-control",
+        "jenkins-agent",
+        "harbor",
+        "filebeat",
+        "vault"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 16,
+        "ram_gb": 32,
+        "disk_os_gb": 500,
+        "disk_data_gb": 1500
+      }
+    },
+    {
+      "name": "WORKER-01",
+      "role": "งานเป็นรอบ: Build, Test, สแกนความปลอดภัย, ทดสอบภาระ",
+      "tools": [
+        "trivy",
+        "nuclei",
+        "velero-restic",
+        "playwright-a11y",
+        "prowler"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 4,
+        "ram_gb": 8,
+        "disk_os_gb": 150,
+        "disk_data_gb": 1000
+      }
+    }
+  ]
+}

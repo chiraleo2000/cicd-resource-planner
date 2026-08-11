@@ -6,7 +6,17 @@
 /โจทย์/
 /Standard/
 /Data/
+# Windows is case-insensitive: keep the planner catalog trackable
+!/data/catalog.json
 
 # OS files
 Thumbs.db
 .DS_Store
+
+# Local extract / scratch
+/_tmp*/
+/_tmp*
+
+# Python
+__pycache__/
+*.pyc

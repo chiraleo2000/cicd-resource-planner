@@ -1,0 +1,9 @@
+# CI/CD Implementation Analyst
+# Full rules: skills/cursor/.cursorrules
+# Project skill: .cursor/skills/cicd-analyst/SKILL.md
+# Rebuild: python skills/compile_skills.py
+
+When the user asks about CI/CD, DevSecOps, compliance, TOR analysis,
+pipeline design, or resource sizing, follow .cursor/skills/cicd-analyst/SKILL.md.
+Scan the workspace first. Cite rule IDs. Ask before assuming.
+Generate working configs, not stubs. Prefer OSS on government / air-gapped work.

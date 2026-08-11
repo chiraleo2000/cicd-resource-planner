@@ -1,0 +1,135 @@
+{
+  "name": "ผัง 6 เครื่อง — ภาครัฐ / CII ครบตามมาตรฐานบังคับ",
+  "description": "On-premise หรือ Air-gapped, แยก Edge ที่มี WAF และ SSO ออกมา และแยกเครื่อง Security/Performance Test ไม่ให้ทับเวลากับ Pipeline หลัก",
+  "profile": "gov",
+  "impact": "high",
+  "mode": "realistic",
+  "horizon_months": 36,
+  "scale_factor": 1.0,
+  "retention_days": 90,
+  "frameworks": [
+    "TH-CCA-2560",
+    "TH-CYBER-2562",
+    "TH-PDPA-2562",
+    "TH-EGOV-2565",
+    "TH-NCSA-MIN-2566",
+    "TH-NCSA-WEB-2568",
+    "TH-DGA-MSPR11-2566",
+    "ISO-27001-2022",
+    "OWASP-TOP10-2025",
+    "NIST-SSDF-800-218",
+    "WCAG-2-2"
+  ],
+  "license_blocklist": [
+    "strong-copyleft",
+    "network-copyleft"
+  ],
+  "external_caps": [],
+  "min_score": 100,
+  "allow_resource_gap": false,
+  "vms": [
+    {
+      "name": "BUILD-AGENT-01",
+      "role": "ขั้นตอนภายใน Pipeline ที่รันเรียงต่อกัน",
+      "tools": [
+        "trivy",
+        "scancode"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 4,
+        "ram_gb": 8,
+        "disk_os_gb": 60,
+        "disk_data_gb": 80
+      }
+    },
+    {
+      "name": "SEC-TEST-01",
+      "role": "งานหลังบ้านและงานภาระหนัก",
+      "tools": [
+        "nuclei",
+        "playwright-a11y",
+        "velero-restic",
+        "prowler",
+        "cbomkit",
+        "locust"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 6,
+        "ram_gb": 12,
+        "disk_os_gb": 150,
+        "disk_data_gb": 1000
+      }
+    },
+    {
+      "name": "CORE-01",
+      "role": "ศูนย์กลาง CI/CD",
+      "tools": [
+        "jenkins-master",
+        "vault",
+        "gitea"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 6,
+        "ram_gb": 12,
+        "disk_os_gb": 100,
+        "disk_data_gb": 200
+      }
+    },
+    {
+      "name": "CORE-02",
+      "role": "ที่เก็บและบันทึก",
+      "tools": [
+        "harbor",
+        "modsecurity"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 6,
+        "ram_gb": 12,
+        "disk_os_gb": 150,
+        "disk_data_gb": 750
+      }
+    },
+    {
+      "name": "CORE-03",
+      "role": "ขึ้นระบบและเฝ้าระวัง",
+      "tools": [
+        "k3s-control",
+        "kibana",
+        "falco"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 6,
+        "ram_gb": 12,
+        "disk_os_gb": 150,
+        "disk_data_gb": 500
+      }
+    },
+    {
+      "name": "CORE-04",
+      "role": "Edge และการยืนยันตัวตน",
+      "tools": [
+        "jenkins-agent",
+        "sonarqube",
+        "redis"
+      ],
+      "executors": {},
+      "extra_install_gb": 0,
+      "spec": {
+        "vcpu": 6,
+        "ram_gb": 12,
+        "disk_os_gb": 200,
+        "disk_data_gb": 500
+      }
+    }
+  ]
+}

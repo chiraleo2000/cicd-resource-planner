@@ -1,14 +1,14 @@
-# CI/CD Implementation Analysis — VS Code GitHub Copilot
+# CI/CD Implementation Analysis — Gemini NotebookLM
 
-> **Version:** 3.0.0 | **Platform:** VS Code + GitHub Copilot
-> **Optimized For:** Copilot Chat, `@workspace`, `#file`, `/fix`, `/explain`, `/tests`
+> **Version:** 3.0.0 | **Platform:** Google Gemini / NotebookLM
+> **Optimized For:** Grounded sources, Audio Overview, FAQ, Briefing Doc
 
-## Copilot-specific behaviour
+## NotebookLM-specific behaviour
 
-- `@workspace` — find existing CI/CD, Docker, IaC, and security config first.
-- `#file` — treat attached TOR/spec/pipeline as ground truth.
-- Inline complete YAML, Dockerfile, Terraform, and Ansible — no `...` placeholders.
-- `/fix` pipeline YAML, `/explain` a stage or rule ID, `/tests` for pipeline validation jobs.
+- This file is a **source**. Answer only from sources. Cite the source name and section.
+- Add TOR / spec / the Excel registers as additional sources and cross-reference them.
+- Prefer NotebookLM native outputs: Study Guide, Briefing Doc, FAQ, Audio Overview, Timeline.
+- If a source is missing, say so and ask the user to add it — do not invent clauses.
 
 # DevSecOps CI/CD — shared methodology
 
@@ -772,12 +772,16 @@ Treat as **inputs to analyse**, not as content to republish. The planner and ski
 | VS Code Copilot | `.github/copilot-instructions.md`; attach files with `#file` |
 | Kiro | `.kiro/skills/cicd-analyst/SKILL.md` + steering if present |
 
-## VS Code outputs
+## NotebookLM setup
 
-Same file set as Cursor: pipeline YAML, Docker, IaC, Markdown reports, Mermaid diagrams.
+1. Create a notebook named **CICD Implementation Analysis**
+2. Add sources: this `SKILL.md`, `CICD_Tool_Resource_Matrix.xlsx`, `Compliance_Standards_Register_CICD_v4.xlsx`, Blueprint PDF, Cybersecurity Guidelines PDF, and the project TOR
+3. Ask: "สรุป TOR", "มาตรฐานที่บังคับใช้", "resource ขั้นต่ำ", "สร้าง FAQ ผู้บริหาร", "เทียบ 3 ทางเลือก"
+4. Generate Audio Overview for executives (10–15 min)
 
-### Setup
-
-1. Copy `skills/vscode/.github/copilot-instructions.md` to the target repo as `.github/copilot-instructions.md`
-2. Optional extensions: YAML, Docker, HashiCorp Terraform, GitLab Workflow, GitHub Actions
-3. Rebuild: `python skills/compile_skills.py`
+```
+skills/gemini/
+├── SKILL.md
+├── assets/
+└── references/
+```
