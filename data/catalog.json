@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.3.0",
+  "schema_version": "1.3.1",
   "generated_for": "CI/CD Service Blueprint V0.2 — Generic Edition (ใช้ได้กับทุกประเภทโครงการ)",
   "storage_baseline_th": "ค่าฐานอ้างอิงสภาพแวดล้อม UAT/Production ขนาดเล็ก: ประมาณ 10 builds/วัน, 1-3 แอปพลิเคชัน, ทีม 5-15 คน, log ระดับ INFO — ใช้ Scale Factor ในโปรแกรมเพื่อขยายตามขนาดจริง",
   "model": {
@@ -151,7 +151,8 @@
     "dast": "Dynamic Application Security Testing",
     "api_security": "API Security Testing",
     "perf_test": "Performance / Load Test",
-    "registry": "Private Container / Artifact Registry",
+    "registry": "Private Container / OCI Registry (Image + Helm)",
+    "package_repo": "Private Package Repository + Upstream Proxy (Maven / npm / PyPI / NuGet / apt)",
     "version_tag": "Version Tagging / Release Management",
     "sbom": "Software Bill of Materials",
     "audit_trail": "Audit Trail (ใครทำอะไรเมื่อไหร่)",
@@ -606,13 +607,54 @@
         "medium",
         "high"
       ],
-      "title_th": "ใช้ Private Registry ควบคุมที่มาของ Image และ Package",
+      "title_th": "ใช้ Private Container Registry ควบคุมที่มาของ Image และ Helm chart",
+      "detail_th": "ห้าม pull จาก Docker Hub สาธารณะใน Production; เปิด immutable tag / ห้าม latest; เก็บ Audit ว่าใคร push อะไร; สแกนช่องโหว่และ Verify ลายเซ็นก่อน Deploy (Harbor / Zot / ACR / ECR / GAR / Nexus Docker hosted)",
       "caps": [
         "registry"
       ],
       "framework_refs": {
+        "TH-NCSA-MIN-2566": "ระดับสูง — Third Party Management / แหล่งซอฟต์แวร์ที่อนุมัติ",
+        "TH-NCSA-CLOUD-2567": "แหล่งอิมเมจและแพ็กเกจจากคลังที่อนุมัติ",
+        "ISO-27001-2022": "A.8.9, A.5.23",
+        "ISO-27002-2022": "8.9",
         "OWASP-TOP10-2025": "A03 Software Supply Chain Failures",
-        "NIST-800-161r1": "SR-11"
+        "OWASP-ASVS-5": "V14 Build environment / trusted artifacts",
+        "NIST-SSDF-800-218": "PS.3 Archive and Protect Each Release",
+        "NIST-800-161r1": "SR-11 Component Authenticity",
+        "CIS-CONTROLS-8": "Control 16 Application Software Security",
+        "SLSA-1-0": "Build L1+ stored in trusted registry",
+        "PCI-DSS-4": "Req 6.3 Trusted source of components",
+        "SOC2-TSC": "CC8 Trusted deployment artifacts",
+        "CSA-CCM-4": "IVS / TVM trusted images"
+      }
+    },
+    {
+      "id": "C-SC-PKG",
+      "group": "supply",
+      "severity": "mandatory",
+      "impact": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title_th": "มีคลังแพ็กเกจภายใน (Maven / npm / PyPI / NuGet / apt) และ Proxy ของ upstream",
+      "detail_th": "งานภาครัฐและ air-gap ต้องดึง dependency ผ่าน proxy ในองค์กร เพื่อกัน typosquatting / dependency confusion และให้ตรวจ CVE/license ก่อนเข้าคลัง — ห้ามให้ Pipeline ชี้ Maven Central หรือ registry.npmjs.org ตรงใน Production (Nexus Repository, Azure Artifacts, Google Artifact Registry)",
+      "caps": [
+        "package_repo"
+      ],
+      "framework_refs": {
+        "TH-NCSA-MIN-2566": "ระดับสูง — Third Party Management / คลังแพ็กเกจภายใน",
+        "TH-NCSA-CLOUD-2567": "คลังแพ็กเกจ / proxy ในองค์กรเมื่อใช้คลาวด์แบบ hybrid",
+        "ISO-27001-2022": "A.8.8 Technical vulnerability, A.5.19 Supplier relationships",
+        "ISO-27002-2022": "8.8",
+        "OWASP-TOP10-2025": "A03 Private package repo / proxy (กัน typosquatting)",
+        "OWASP-ASVS-5": "V14 Configuration / dependency management",
+        "NIST-SSDF-800-218": "PW.4 Reuse Existing Software Securely (trusted package repo)",
+        "NIST-800-161r1": "SR-3 / SR-5 Acquisition — private proxy of upstream",
+        "CIS-CONTROLS-8": "Control 16 Application Software Security",
+        "SLSA-1-0": "Dependencies from verified repository",
+        "PCI-DSS-4": "Req 6.3 Inventory of custom and third-party software",
+        "CSA-CCM-4": "STA Supply chain / third-party components"
       }
     },
     {
@@ -633,6 +675,30 @@
         "OWASP-TOP10-2025": "A08 Software/Data Integrity Failures",
         "NIST-SSDF-800-218": "PW.4 Reuse Existing Software Securely",
         "SLSA-1-0": "Dependencies Complete"
+      }
+    },
+    {
+      "id": "C-SC-PROMOTE",
+      "group": "supply",
+      "severity": "mandatory",
+      "impact": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title_th": "โปรโมต Artifact เป็นขั้น (dev → uat → prod) และห้ามเขียนทับเวอร์ชันที่ปล่อยแล้ว",
+      "detail_th": "แยก hosted repo แบบ snapshot/release หรือใช้ staging; ปิด redeploy ของเวอร์ชันที่ GA แล้ว; เก็บ SBOM และลายเซ็นคู่กับ artifact ตามอายุการใช้งานของระบบ",
+      "caps": [
+        "version_tag",
+        "package_repo"
+      ],
+      "framework_refs": {
+        "ISO-27001-2022": "A.8.32 Change management",
+        "OWASP-TOP10-2025": "A03/A08 Immutable release + promotion",
+        "NIST-SSDF-800-218": "PS.3 Archive and Protect Each Release",
+        "NIST-800-161r1": "SR-4 Provenance of promoted artifacts",
+        "SLSA-1-0": "Build L2 provenance stored with release",
+        "SOC2-TSC": "CC8 Change Management — promoted releases only"
       }
     },
     {
@@ -1430,6 +1496,8 @@
         "C-APP-PENTEST": "ระดับสูง — VAPT",
         "C-SC-SBOM": "ระดับสูง — Third Party Management",
         "C-SC-SCA": "ระดับสูง — Third Party Management",
+        "C-SC-REGISTRY": "ระดับสูง — Third Party Management / แหล่งซอฟต์แวร์ที่อนุมัติ",
+        "C-SC-PKG": "ระดับสูง — Third Party Management / คลังแพ็กเกจภายใน",
         "C-OPS-BCP": "ระดับสูง — Resilience & Recovery",
         "C-OPS-BACKUP": "ระดับสูง — Resilience & Recovery",
         "C-OPS-HARDEN": "การควบคุมเชิงเทคนิค"
@@ -1450,7 +1518,9 @@
         "C-IAM-LEAST": "Access Control",
         "C-CRY-KEY": "Data Encryption",
         "C-LOG-CENTRAL": "Operation Security",
-        "C-OPS-MONITOR": "Continuous Monitoring"
+        "C-OPS-MONITOR": "Continuous Monitoring",
+        "C-SC-REGISTRY": "แหล่งอิมเมจและแพ็กเกจจากคลังที่อนุมัติ",
+        "C-SC-PKG": "คลังแพ็กเกจ / proxy ในองค์กรเมื่อใช้คลาวด์แบบ hybrid"
       },
       "region": "th"
     },
@@ -1637,6 +1707,9 @@
         "C-IAM-LEAST": "A.5.15, A.8.2",
         "C-CRY-KEY": "A.8.24",
         "C-SC-LICENSE": "A.5.32",
+        "C-SC-REGISTRY": "A.8.9, A.5.23",
+        "C-SC-PKG": "A.8.8 Technical vulnerability, A.5.19 Supplier relationships",
+        "C-SC-PROMOTE": "A.8.32 Change management",
         "C-OPS-BACKUP": "A.8.13",
         "C-APP-PENTEST": "A.8.8",
         "C-OPS-PERF": "A.8.6"
@@ -1656,6 +1729,8 @@
         "C-SDLC-SAST": "8.28",
         "C-LOG-CENTRAL": "8.15",
         "C-SC-SCA": "8.8",
+        "C-SC-PKG": "8.8",
+        "C-SC-REGISTRY": "8.9",
         "C-SDLC-SECRET": "8.24"
       },
       "region": "intl"
@@ -1796,6 +1871,8 @@
         "C-SC-SBOM": "A03 Software Supply Chain Failures",
         "C-SC-SCA": "A03 Software Supply Chain Failures",
         "C-SC-REGISTRY": "A03 Software Supply Chain Failures",
+        "C-SC-PKG": "A03 Private package repo / proxy (กัน typosquatting)",
+        "C-SC-PROMOTE": "A03/A08 Immutable release + promotion",
         "C-SC-CONTAINER": "A02/A03 Container image vulnerabilities",
         "C-CRY-TLS": "A04 Cryptographic Failures",
         "C-CRY-KEY": "A04 Cryptographic Failures",
@@ -1825,7 +1902,9 @@
         "C-APP-INJECT": "V5 Validation & Encoding",
         "C-CRY-KEY": "V6 Cryptography",
         "C-APP-ERROR": "V7 Error Handling & Logging",
-        "C-LOG-CENTRAL": "V7 Error Handling & Logging"
+        "C-LOG-CENTRAL": "V7 Error Handling & Logging",
+        "C-SC-PKG": "V14 Configuration / dependency management",
+        "C-SC-REGISTRY": "V14 Build environment / trusted artifacts"
       },
       "region": "intl"
     },
@@ -1890,7 +1969,10 @@
         "C-SDLC-TEST": "PW.8 Test Executable Code",
         "C-SC-SBOM": "PS.3 Archive and Protect Each Release",
         "C-SC-SIGN": "PS.2 Provide a Mechanism for Verifying Integrity",
-        "C-SC-PIN": "PW.4 Reuse Existing Software Securely"
+        "C-SC-PIN": "PW.4 Reuse Existing Software Securely",
+        "C-SC-PKG": "PW.4 Reuse Existing Software Securely (trusted package repo)",
+        "C-SC-REGISTRY": "PS.3 Archive and Protect Each Release",
+        "C-SC-PROMOTE": "PS.3 Archive and Protect Each Release"
       },
       "region": "intl"
     },
@@ -1905,7 +1987,9 @@
       "controls": {
         "C-SC-SBOM": "SR-4 Provenance",
         "C-SC-SCA": "SR-3",
-        "C-SC-REGISTRY": "SR-11",
+        "C-SC-REGISTRY": "SR-11 Component Authenticity",
+        "C-SC-PKG": "SR-3 / SR-5 Acquisition — private proxy of upstream",
+        "C-SC-PROMOTE": "SR-4 Provenance of promoted artifacts",
         "C-SC-SIGN": "SR-4(3)",
         "C-SC-LICENSE": "SR-5"
       },
@@ -2002,6 +2086,8 @@
         "C-OPS-HARDEN": "Control 4 Secure Configuration",
         "C-IAM-MFA": "Control 6 Access Control Management",
         "C-SC-SCA": "Control 7 Continuous Vulnerability Management",
+        "C-SC-REGISTRY": "Control 16 Application Software Security",
+        "C-SC-PKG": "Control 16 Application Software Security",
         "C-LOG-CENTRAL": "Control 8 Audit Log Management",
         "C-OPS-DEPLOY": "Control 4.7 Change control",
         "C-OPS-BACKUP": "Control 11 Data Recovery",
@@ -2041,7 +2127,10 @@
         "C-SDLC-TRACE": "Provenance Available",
         "C-SC-PIN": "Dependencies Complete",
         "C-SC-IMG": "Build L3 Hermetic / Isolated build",
-        "C-SC-SBOM": "Provenance content"
+        "C-SC-SBOM": "Provenance content",
+        "C-SC-REGISTRY": "Build L1+ stored in trusted registry",
+        "C-SC-PKG": "Dependencies from verified repository",
+        "C-SC-PROMOTE": "Build L2 provenance stored with release"
       },
       "region": "intl"
     },
@@ -2087,6 +2176,8 @@
         "C-SDLC-SAST": "Req 6.2 Secure development",
         "C-SC-SCA": "Req 6.3 Vulnerability management",
         "C-SC-CONTAINER": "Req 6.3 Vulnerability management",
+        "C-SC-REGISTRY": "Req 6.3 Trusted source of components",
+        "C-SC-PKG": "Req 6.3 Inventory of custom and third-party software",
         "C-APP-WAF": "Req 6.4.2 Automated technical solution",
         "C-LOG-CENTRAL": "Req 10 Log and monitor",
         "C-APP-PENTEST": "Req 11.4 Penetration testing"
@@ -2107,7 +2198,9 @@
         "C-SDLC-REVIEW": "CC8 Change Management",
         "C-OPS-BCP": "A1.2 Availability",
         "C-LOG-SIEM": "CC7.2 Monitoring",
-        "C-OPS-DEPLOY": "CC8.1 Change deployment & rollback"
+        "C-OPS-DEPLOY": "CC8.1 Change deployment & rollback",
+        "C-SC-PROMOTE": "CC8 Change Management — promoted releases only",
+        "C-SC-REGISTRY": "CC8 Trusted deployment artifacts"
       },
       "region": "intl"
     },
@@ -2124,7 +2217,9 @@
         "C-IAM-LEAST": "IAM",
         "C-CRY-KEY": "CEK",
         "C-LOG-CENTRAL": "LOG",
-        "C-SC-SBOM": "AIS-06"
+        "C-SC-SBOM": "AIS-06",
+        "C-SC-REGISTRY": "IVS / TVM trusted images",
+        "C-SC-PKG": "STA Supply chain / third-party components"
       },
       "region": "intl"
     },
@@ -2343,7 +2438,7 @@
         "aiml"
       ],
       "sizing_ref": "GitLab docs: 4 vCPU / 4 GB (แนะนำ 8 GB) รองรับได้ถึง ~500 users; Puma+Sidekiq+Gitaly+PostgreSQL+Redis รวมในเครื่องเดียว",
-      "note_th": "ทางเลือกหลักของภาครัฐที่ต้องการ Git แบบ On-premise เต็มรูปแบบ กินทรัพยากรมากเพราะรวมหลาย service; ถ้าต้องการเบาให้ใช้ Gitea",
+      "note_th": "ทางเลือกหลักของภาครัฐที่ต้องการ Git แบบ On-premise เต็มรูปแบบ กินทรัพยากรมากเพราะรวมหลาย service; ถ้าต้องการเบาให้ใช้ Gitea; Package Registry ในตัวยังไม่แทน Nexus เมื่อต้องมี Maven/npm proxy แบบ air-gap",
       "managed": false,
       "fit": [
         "private",
@@ -5189,10 +5284,11 @@
       "license": "Apache-2.0",
       "core": "Core",
       "enterprise_alt": [
-        "JFrog Artifactory (with Maven/Gradle)",
-        "Azure DevOps Build",
-        "AWS CodeBuild",
-        "CloudBees Build"
+        "Sonatype Nexus Repository Pro",
+        "JFrog Artifactory",
+        "Azure Artifacts",
+        "AWS CodeArtifact",
+        "Google Artifact Registry"
       ],
       "oss_alt": [],
       "min": {
@@ -5224,7 +5320,7 @@
         "aiml"
       ],
       "sizing_ref": "Gradle daemon ตั้ง heap 1-2 GB โดยปริยาย; Maven fork JVM ต่อ module; local cache ~/.m2 หรือ ~/.gradle โต 5-20 GB และ node_modules 1-3 GB ต่อโปรเจกต์",
-      "note_th": "อย่าลืมกัน disk ให้ dependency cache — เป็นสาเหตุ 'disk full' อันดับ 1 บนเครื่อง Agent; ควรตั้ง cache cleanup รายสัปดาห์",
+      "note_th": "อย่าลืมกัน disk ให้ dependency cache — เป็นสาเหตุ 'disk full' อันดับ 1 บนเครื่อง Agent; ควรตั้ง cache cleanup รายสัปดาห์ และชี้ settings.xml/npmrc ไปคลังภายใน (Nexus / GAR) ห้ามดึง Maven Central หรือ npmjs ตรงจาก Production",
       "managed": false,
       "fit": [
         "private",
@@ -6777,12 +6873,13 @@
         "JFrog Artifactory Enterprise",
         "Amazon ECR",
         "Azure Container Registry",
-        "Google Artifact Registry"
+        "Google Artifact Registry",
+        "Red Hat Quay"
       ],
       "oss_alt": [
         "Zot",
-        "Quay.io",
-        "Distribution (Docker Registry)",
+        "Nexus Repository OSS",
+        "Distribution (CNCF)",
         "GitLab Container Registry"
       ],
       "min": {
@@ -6814,7 +6911,7 @@
         "aiml"
       ],
       "sizing_ref": "Harbor docs: minimum 2 CPU / 4 GB RAM / 40 GB disk; recommended 4 CPU / 8 GB RAM / 160 GB disk — ประกอบด้วย core, registry, jobservice, PostgreSQL, Redis, Trivy",
-      "note_th": "รองรับ Air-gapped ตามข้อกำหนดภาครัฐ + มี Vulnerability Scan และ Cosign verification ในตัว; ต้องตั้ง Retention Policy ไม่งั้น disk โตไม่หยุด (2-5 GB/วัน จาก image tag ใหม่)",
+      "note_th": "คลัง OCI/Helm ของขั้น Store — มี Vulnerability Scan และ Cosign verification ในตัว เหมาะงานภาครัฐแบบ air-gap; ไม่แทนคลัง Maven/npm (ใช้ Nexus Repository); ต้องตั้ง Retention Policy ไม่งั้น disk โตไม่หยุด",
       "managed": false,
       "fit": [
         "private",
@@ -6845,6 +6942,7 @@
           "C-LOG-90",
           "C-OPS-BCP",
           "C-SC-PIN",
+          "C-SC-PROMOTE",
           "C-SDLC-TRACE",
           "C-WEB-SELF"
         ],
@@ -6855,6 +6953,7 @@
           "TH-EGOV-2565",
           "TH-ETDA-ESIGN",
           "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
           "TH-NCSA-MIN-2566",
           "TH-NCSA-RAM-2564",
           "TH-NCSA-WEB-2568",
@@ -6862,8 +6961,11 @@
         ],
         "frameworks_intl": [
           "CIS-BENCH-K8S",
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
           "ISO-22301-2019",
           "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-27018-2019",
           "ISO-27701-2019",
           "ISO-42001-2023",
@@ -6871,22 +6973,34 @@
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
           "PCI-DSS-4",
           "SLSA-1-0",
           "SOC2-TSC"
         ],
-        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
-        "frameworks_intl_text": "CIS Benchmarks; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-SC-CONTAINER"
+          ],
+          "CIS-CONTROLS-8": [
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
           ],
           "ISO-22301-2019": [
             "C-OPS-BCP"
           ],
           "ISO-27001-2022": [
-            "C-LOG-AUDIT"
+            "C-LOG-AUDIT",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-27018-2019": [
             "C-LOG-AUDIT"
@@ -6899,6 +7013,7 @@
             "C-LOG-AUDIT"
           ],
           "NIST-800-161r1": [
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
@@ -6910,26 +7025,37 @@
           ],
           "NIST-SSDF-800-218": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
             "C-SC-SIGN",
             "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
           ],
           "OWASP-TOP10-2025": [
             "C-SC-CONTAINER",
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
           "PCI-DSS-4": [
-            "C-SC-CONTAINER"
+            "C-SC-CONTAINER",
+            "C-SC-REGISTRY"
           ],
           "SLSA-1-0": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
             "C-SC-SIGN",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
           ],
           "TH-CCA-2560": [
             "C-LOG-90",
@@ -6955,10 +7081,264 @@
             "C-LOG-AUDIT",
             "C-WEB-SELF"
           ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
           "TH-NCSA-MIN-2566": [
             "C-LOG-90",
             "C-LOG-AUDIT",
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
+          ],
+          "TH-NCSA-WEB-2568": [
+            "C-WEB-SELF"
+          ],
+          "TH-PDPA-2562": [
+            "C-LOG-AUDIT"
+          ]
+        },
+        "control_count": 11,
+        "framework_count": 29
+      }
+    },
+    {
+      "id": "nexus-repository",
+      "name": "Sonatype Nexus Repository OSS (Maven / npm / PyPI / Docker / Helm)",
+      "stage": 5,
+      "category": "Package & Artifact Repository",
+      "capabilities": [
+        "package_repo",
+        "registry",
+        "version_tag",
+        "audit_trail"
+      ],
+      "grade": "oss",
+      "license": "EPL-1.0",
+      "core": "Core",
+      "enterprise_alt": [
+        "Sonatype Nexus Repository Pro",
+        "JFrog Artifactory",
+        "Azure Artifacts",
+        "AWS CodeArtifact",
+        "Google Artifact Registry"
+      ],
+      "oss_alt": [
+        "GitLab Package Registry",
+        "Zot (OCI อย่างเดียว)",
+        "Verdaccio (npm)",
+        "devpi (PyPI)"
+      ],
+      "min": {
+        "vcpu": 4,
+        "ram_gb": 8,
+        "disk_os_gb": 40
+      },
+      "rec": {
+        "vcpu": 8,
+        "ram_gb": 16,
+        "disk_os_gb": 400
+      },
+      "resident": true,
+      "idle_ram_gb": 4.5,
+      "freq": "resident",
+      "gpu": false,
+      "storage": {
+        "install_gb": 40,
+        "data_daily_gb": 1.5,
+        "retention_days": 365,
+        "index_overhead": 0.15,
+        "growth_yr": 0.3
+      },
+      "profiles": [
+        "gov",
+        "enterprise",
+        "internal",
+        "startup",
+        "aiml"
+      ],
+      "sizing_ref": "Sonatype system requirements: ขั้นต่ำ 4 CPU / 8 GB RAM (heap ~4 GB) สำหรับทีมเล็ก; แนะนำ 8 CPU / 16 GB เมื่อมี Docker hosted + Maven/npm proxy พร้อมกัน; blob store แยกจากดิสก์ติดตั้ง",
+      "note_th": "ที่หน่วยงานไทยมักเรียกว่า Nexus หรือ Apache Nexus เพราะใช้เป็นคลัง Maven ของระบบนิเวศ Apache — ผลิตภัณฑ์จริงคือ Sonatype Nexus Repository OSS (EPL-1.0) ไม่ใช่โครงการของ Apache Software Foundation (Apache Archiva ถูกยุบแล้ว); ใช้ Hosted+Proxy+Group กัน typosquatting/dependency confusion และเป็นทางหลักของงาน air-gap ที่ห้าม build ดึง Maven Central/npmjs ตรง",
+      "managed": false,
+      "fit": [
+        "private",
+        "hybrid",
+        "local",
+        "cloud"
+      ],
+      "install": {
+        "family": "binary",
+        "packages": [
+          "openjdk-17-jre-headless"
+        ],
+        "lines": [
+          "need_cmd nexus || install_from_mirror nexus nexus-unix.tar.gz",
+          "log \"ตั้ง NEXUS_HOME + blob store แยกจาก OS disk; สร้าง hosted/proxy/group สำหรับ maven npm pypi docker\""
+        ]
+      },
+      "conc_group": "resident",
+      "license_class": "weak-copyleft",
+      "compliance": {
+        "controls_full": [
+          "C-LOG-AUDIT",
+          "C-SC-PKG",
+          "C-SC-PROMOTE",
+          "C-SC-REGISTRY"
+        ],
+        "controls_partial": [
+          "C-AI-GOV",
+          "C-LOG-90",
+          "C-OPS-BCP",
+          "C-SC-PIN",
+          "C-SDLC-TRACE",
+          "C-WEB-SELF"
+        ],
+        "frameworks_th": [
+          "TH-CCA-2560",
+          "TH-CYBER-2562",
+          "TH-DGA-OPENDATA",
+          "TH-EGOV-2565",
+          "TH-ETDA-ESIGN",
+          "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
+          "TH-NCSA-MIN-2566",
+          "TH-NCSA-RAM-2564",
+          "TH-NCSA-WEB-2568",
+          "TH-PDPA-2562"
+        ],
+        "frameworks_intl": [
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
+          "ISO-22301-2019",
+          "ISO-27001-2022",
+          "ISO-27002-2022",
+          "ISO-27018-2019",
+          "ISO-27701-2019",
+          "ISO-42001-2023",
+          "NIST-800-161r1",
+          "NIST-800-53r5",
+          "NIST-CSF-2",
+          "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
+          "OWASP-TOP10-2025",
+          "PCI-DSS-4",
+          "SLSA-1-0",
+          "SOC2-TSC"
+        ],
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
+        "framework_controls": {
+          "CIS-CONTROLS-8": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-22301-2019": [
+            "C-OPS-BCP"
+          ],
+          "ISO-27001-2022": [
+            "C-LOG-AUDIT",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27018-2019": [
+            "C-LOG-AUDIT"
+          ],
+          "ISO-27701-2019": [
+            "C-LOG-AUDIT"
+          ],
+          "ISO-42001-2023": [
+            "C-AI-GOV",
+            "C-LOG-AUDIT"
+          ],
+          "NIST-800-161r1": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "NIST-800-53r5": [
+            "C-LOG-AUDIT"
+          ],
+          "NIST-CSF-2": [
+            "C-OPS-BCP"
+          ],
+          "NIST-SSDF-800-218": [
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "OWASP-TOP10-2025": [
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "PCI-DSS-4": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "SLSA-1-0": [
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SDLC-TRACE"
+          ],
+          "SOC2-TSC": [
+            "C-LOG-AUDIT",
+            "C-OPS-BCP",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "TH-CCA-2560": [
+            "C-LOG-90",
+            "C-LOG-AUDIT"
+          ],
+          "TH-CYBER-2562": [
+            "C-LOG-AUDIT",
+            "C-OPS-BCP"
+          ],
+          "TH-DGA-OPENDATA": [
+            "C-LOG-AUDIT",
+            "C-SDLC-TRACE"
+          ],
+          "TH-EGOV-2565": [
+            "C-LOG-AUDIT",
+            "C-SDLC-TRACE"
+          ],
+          "TH-ETDA-ESIGN": [
+            "C-LOG-AUDIT"
+          ],
+          "TH-ITA-NACC": [
+            "C-LOG-AUDIT",
+            "C-WEB-SELF"
+          ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-MIN-2566": [
+            "C-LOG-90",
+            "C-LOG-AUDIT",
+            "C-OPS-BCP",
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
           ],
           "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
@@ -6971,7 +7351,245 @@
           ]
         },
         "control_count": 10,
-        "framework_count": 24
+        "framework_count": 28
+      }
+    },
+    {
+      "id": "zot",
+      "name": "Zot (OCI-native Registry, CNCF)",
+      "stage": 5,
+      "category": "Container Registry",
+      "capabilities": [
+        "registry",
+        "artifact_sign",
+        "version_tag",
+        "audit_trail"
+      ],
+      "grade": "oss",
+      "license": "Apache-2.0",
+      "core": "Optional",
+      "enterprise_alt": [
+        "Harbor",
+        "Amazon ECR",
+        "Azure Container Registry",
+        "Google Artifact Registry"
+      ],
+      "oss_alt": [
+        "Harbor",
+        "Distribution (CNCF)",
+        "Nexus Repository OSS"
+      ],
+      "min": {
+        "vcpu": 1,
+        "ram_gb": 2,
+        "disk_os_gb": 20
+      },
+      "rec": {
+        "vcpu": 2,
+        "ram_gb": 4,
+        "disk_os_gb": 100
+      },
+      "resident": true,
+      "idle_ram_gb": 0.6,
+      "freq": "resident",
+      "gpu": false,
+      "storage": {
+        "install_gb": 20,
+        "data_daily_gb": 0.4,
+        "retention_days": 180,
+        "index_overhead": 0.1,
+        "growth_yr": 0.2
+      },
+      "profiles": [
+        "gov",
+        "enterprise",
+        "internal",
+        "startup",
+        "aiml"
+      ],
+      "sizing_ref": "Zot เป็น registry ไฟล์เดียว กิน RAM ประมาณ 200-800 MB; เหมาะเครื่องเล็ก / local Kubernetes และเก็บ OCI artifact + Cosign/Notation",
+      "note_th": "ทางเลือกเบากว่า Harbor เมื่อต้องการแค่คลัง image/Helm ไม่มี Maven/npm — ใช้คู่กับ Nexus เมื่อต้องมีทั้งแพ็กเกจและคอนเทนเนอร์",
+      "managed": false,
+      "fit": [
+        "local",
+        "private",
+        "hybrid",
+        "cloud"
+      ],
+      "install": {
+        "family": "binary",
+        "packages": [],
+        "lines": [
+          "need_cmd zot || install_from_mirror zot zot"
+        ]
+      },
+      "conc_group": "resident",
+      "license_class": "permissive",
+      "compliance": {
+        "controls_full": [
+          "C-LOG-AUDIT",
+          "C-SC-REGISTRY",
+          "C-SC-SIGN"
+        ],
+        "controls_partial": [
+          "C-AI-GOV",
+          "C-LOG-90",
+          "C-OPS-BCP",
+          "C-SC-PIN",
+          "C-SC-PROMOTE",
+          "C-SDLC-TRACE",
+          "C-WEB-SELF"
+        ],
+        "frameworks_th": [
+          "TH-CCA-2560",
+          "TH-CYBER-2562",
+          "TH-DGA-OPENDATA",
+          "TH-EGOV-2565",
+          "TH-ETDA-ESIGN",
+          "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
+          "TH-NCSA-MIN-2566",
+          "TH-NCSA-RAM-2564",
+          "TH-NCSA-WEB-2568",
+          "TH-PDPA-2562"
+        ],
+        "frameworks_intl": [
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
+          "ISO-22301-2019",
+          "ISO-27001-2022",
+          "ISO-27002-2022",
+          "ISO-27018-2019",
+          "ISO-27701-2019",
+          "ISO-42001-2023",
+          "NIST-800-161r1",
+          "NIST-800-53r5",
+          "NIST-CSF-2",
+          "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
+          "OWASP-TOP10-2025",
+          "PCI-DSS-4",
+          "SLSA-1-0",
+          "SOC2-TSC"
+        ],
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
+        "framework_controls": {
+          "CIS-CONTROLS-8": [
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-22301-2019": [
+            "C-OPS-BCP"
+          ],
+          "ISO-27001-2022": [
+            "C-LOG-AUDIT",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27018-2019": [
+            "C-LOG-AUDIT"
+          ],
+          "ISO-27701-2019": [
+            "C-LOG-AUDIT"
+          ],
+          "ISO-42001-2023": [
+            "C-AI-GOV",
+            "C-LOG-AUDIT"
+          ],
+          "NIST-800-161r1": [
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN"
+          ],
+          "NIST-800-53r5": [
+            "C-LOG-AUDIT"
+          ],
+          "NIST-CSF-2": [
+            "C-OPS-BCP"
+          ],
+          "NIST-SSDF-800-218": [
+            "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN",
+            "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
+          ],
+          "OWASP-TOP10-2025": [
+            "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN"
+          ],
+          "PCI-DSS-4": [
+            "C-SC-REGISTRY"
+          ],
+          "SLSA-1-0": [
+            "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN",
+            "C-SDLC-TRACE"
+          ],
+          "SOC2-TSC": [
+            "C-LOG-AUDIT",
+            "C-OPS-BCP",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "TH-CCA-2560": [
+            "C-LOG-90",
+            "C-LOG-AUDIT"
+          ],
+          "TH-CYBER-2562": [
+            "C-LOG-AUDIT",
+            "C-OPS-BCP"
+          ],
+          "TH-DGA-OPENDATA": [
+            "C-LOG-AUDIT",
+            "C-SDLC-TRACE"
+          ],
+          "TH-EGOV-2565": [
+            "C-LOG-AUDIT",
+            "C-SDLC-TRACE"
+          ],
+          "TH-ETDA-ESIGN": [
+            "C-LOG-AUDIT",
+            "C-SC-SIGN"
+          ],
+          "TH-ITA-NACC": [
+            "C-LOG-AUDIT",
+            "C-WEB-SELF"
+          ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-MIN-2566": [
+            "C-LOG-90",
+            "C-LOG-AUDIT",
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-RAM-2564": [
+            "C-OPS-BCP"
+          ],
+          "TH-NCSA-WEB-2568": [
+            "C-WEB-SELF"
+          ],
+          "TH-PDPA-2562": [
+            "C-LOG-AUDIT"
+          ]
+        },
+        "control_count": 10,
+        "framework_count": 28
       }
     },
     {
@@ -7061,6 +7679,7 @@
           "TH-ETDA-CLOUD",
           "TH-ETDA-ESIGN",
           "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
           "TH-NCSA-MIN-2566",
           "TH-NCSA-RAM-2564",
           "TH-NCSA-WEB-2568",
@@ -7069,8 +7688,10 @@
         ],
         "frameworks_intl": [
           "CIS-CONTROLS-8",
+          "CSA-CCM-4",
           "ISO-22301-2019",
           "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-27018-2019",
           "ISO-27701-2019",
           "ISO-42001-2023",
@@ -7078,15 +7699,21 @@
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
+          "PCI-DSS-4",
           "SLSA-1-0",
           "SOC2-TSC"
         ],
-        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มสพร. 11-2566 เว็บไซต์ภาครัฐ 3.0; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. การใช้บริการคลาวด์; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562; พ.ร.ฎ. วิธีการแบบปลอดภัย 2553",
-        "frameworks_intl_text": "CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มสพร. 11-2566 เว็บไซต์ภาครัฐ 3.0; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. การใช้บริการคลาวด์; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562; พ.ร.ฎ. วิธีการแบบปลอดภัย 2553",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-CONTROLS-8": [
-            "C-OPS-BACKUP"
+            "C-OPS-BACKUP",
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
           ],
           "ISO-22301-2019": [
             "C-OPS-BACKUP",
@@ -7094,7 +7721,11 @@
           ],
           "ISO-27001-2022": [
             "C-LOG-AUDIT",
-            "C-OPS-BACKUP"
+            "C-OPS-BACKUP",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-27018-2019": [
             "C-LOG-AUDIT"
@@ -7117,17 +7748,26 @@
             "C-OPS-BCP"
           ],
           "NIST-SSDF-800-218": [
+            "C-SC-REGISTRY",
             "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
           ],
           "OWASP-TOP10-2025": [
             "C-SC-REGISTRY"
           ],
+          "PCI-DSS-4": [
+            "C-SC-REGISTRY"
+          ],
           "SLSA-1-0": [
+            "C-SC-REGISTRY",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
           ],
           "TH-CCA-2560": [
             "C-LOG-90",
@@ -7158,11 +7798,15 @@
             "C-LOG-AUDIT",
             "C-WEB-SELF"
           ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
           "TH-NCSA-MIN-2566": [
             "C-LOG-90",
             "C-LOG-AUDIT",
             "C-OPS-BACKUP",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
           ],
           "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
@@ -7179,7 +7823,7 @@
           ]
         },
         "control_count": 8,
-        "framework_count": 26
+        "framework_count": 31
       }
     },
     {
@@ -9411,6 +10055,7 @@
           "C-IAM-REMOTE",
           "C-OPS-DEPLOY",
           "C-SC-PIN",
+          "C-SC-PROMOTE",
           "C-SDLC-TRACE"
         ],
         "frameworks_th": [
@@ -9427,6 +10072,7 @@
           "ISO-27001-2022",
           "ISO-27002-2022",
           "ISO-42001-2023",
+          "NIST-800-161r1",
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
@@ -9435,7 +10081,7 @@
           "SOC2-TSC"
         ],
         "frameworks_th_text": "พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ความมั่นคงปลอดภัยสารสนเทศ; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564",
-        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-OPS-HARDEN"
@@ -9445,13 +10091,17 @@
             "C-OPS-HARDEN"
           ],
           "ISO-27001-2022": [
-            "C-OPS-HARDEN"
+            "C-OPS-HARDEN",
+            "C-SC-PROMOTE"
           ],
           "ISO-27002-2022": [
             "C-OPS-HARDEN"
           ],
           "ISO-42001-2023": [
             "C-AI-GOV"
+          ],
+          "NIST-800-161r1": [
+            "C-SC-PROMOTE"
           ],
           "NIST-800-53r5": [
             "C-OPS-HARDEN"
@@ -9461,18 +10111,22 @@
           ],
           "NIST-SSDF-800-218": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "OWASP-TOP10-2025": [
             "C-OPS-HARDEN",
-            "C-SC-PIN"
+            "C-SC-PIN",
+            "C-SC-PROMOTE"
           ],
           "SLSA-1-0": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
-            "C-OPS-DEPLOY"
+            "C-OPS-DEPLOY",
+            "C-SC-PROMOTE"
           ],
           "TH-CYBER-2562": [
             "C-OPS-DEPLOY"
@@ -9494,8 +10148,8 @@
             "C-OPS-HARDEN"
           ]
         },
-        "control_count": 6,
-        "framework_count": 17
+        "control_count": 7,
+        "framework_count": 18
       }
     },
     {
@@ -9717,6 +10371,7 @@
           "C-OPS-BCP",
           "C-OPS-DEPLOY",
           "C-SC-PIN",
+          "C-SC-PROMOTE",
           "C-SDLC-REVIEW",
           "C-SDLC-THREAT",
           "C-SDLC-TRACE",
@@ -9742,6 +10397,7 @@
           "ISO-27034",
           "ISO-27701-2019",
           "ISO-42001-2023",
+          "NIST-800-161r1",
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
@@ -9751,7 +10407,7 @@
           "SOC2-TSC"
         ],
         "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
-        "frameworks_intl_text": "CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27034; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP SAMM 2; OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_intl_text": "CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27034; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP SAMM 2; OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-CONTROLS-8": [
             "C-OPS-DEPLOY"
@@ -9761,6 +10417,7 @@
           ],
           "ISO-27001-2022": [
             "C-LOG-AUDIT",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW",
             "C-SDLC-THREAT"
           ],
@@ -9777,6 +10434,9 @@
             "C-AI-GOV",
             "C-LOG-AUDIT"
           ],
+          "NIST-800-161r1": [
+            "C-SC-PROMOTE"
+          ],
           "NIST-800-53r5": [
             "C-LOG-AUDIT"
           ],
@@ -9785,6 +10445,7 @@
           ],
           "NIST-SSDF-800-218": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW",
             "C-SDLC-TRACE"
           ],
@@ -9794,16 +10455,19 @@
           ],
           "OWASP-TOP10-2025": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-THREAT"
           ],
           "SLSA-1-0": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
             "C-OPS-BCP",
             "C-OPS-DEPLOY",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW"
           ],
           "TH-CCA-2560": [
@@ -9845,8 +10509,8 @@
             "C-LOG-AUDIT"
           ]
         },
-        "control_count": 10,
-        "framework_count": 24
+        "control_count": 11,
+        "framework_count": 25
       }
     },
     {
@@ -9931,6 +10595,7 @@
           "C-OPS-BCP",
           "C-OPS-DEPLOY",
           "C-SC-PIN",
+          "C-SC-PROMOTE",
           "C-SDLC-TRACE",
           "C-WEB-SELF"
         ],
@@ -9956,6 +10621,7 @@
           "ISO-27018-2019",
           "ISO-27701-2019",
           "ISO-42001-2023",
+          "NIST-800-161r1",
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
@@ -9964,7 +10630,7 @@
           "SOC2-TSC"
         ],
         "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ขมธอ. ความมั่นคงปลอดภัยสารสนเทศ; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
-        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-OPS-HARDEN"
@@ -9978,7 +10644,8 @@
           ],
           "ISO-27001-2022": [
             "C-LOG-AUDIT",
-            "C-OPS-HARDEN"
+            "C-OPS-HARDEN",
+            "C-SC-PROMOTE"
           ],
           "ISO-27002-2022": [
             "C-OPS-HARDEN"
@@ -9993,6 +10660,9 @@
             "C-AI-GOV",
             "C-LOG-AUDIT"
           ],
+          "NIST-800-161r1": [
+            "C-SC-PROMOTE"
+          ],
           "NIST-800-53r5": [
             "C-LOG-AUDIT",
             "C-OPS-HARDEN"
@@ -10003,20 +10673,24 @@
           ],
           "NIST-SSDF-800-218": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "OWASP-TOP10-2025": [
             "C-OPS-HARDEN",
-            "C-SC-PIN"
+            "C-SC-PIN",
+            "C-SC-PROMOTE"
           ],
           "SLSA-1-0": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
             "C-OPS-BCP",
-            "C-OPS-DEPLOY"
+            "C-OPS-DEPLOY",
+            "C-SC-PROMOTE"
           ],
           "TH-CCA-2560": [
             "C-LOG-90",
@@ -10063,8 +10737,8 @@
             "C-LOG-AUDIT"
           ]
         },
-        "control_count": 10,
-        "framework_count": 25
+        "control_count": 11,
+        "framework_count": 26
       }
     },
     {
@@ -12125,6 +12799,7 @@
           "C-LOG-90",
           "C-OPS-BCP",
           "C-SC-PIN",
+          "C-SC-PROMOTE",
           "C-SDLC-TRACE",
           "C-WEB-SELF"
         ],
@@ -12135,14 +12810,18 @@
           "TH-EGOV-2565",
           "TH-ETDA-ESIGN",
           "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
           "TH-NCSA-MIN-2566",
           "TH-NCSA-RAM-2564",
           "TH-NCSA-WEB-2568",
           "TH-PDPA-2562"
         ],
         "frameworks_intl": [
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
           "ISO-22301-2019",
           "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-27018-2019",
           "ISO-27701-2019",
           "ISO-42001-2023",
@@ -12150,18 +12829,31 @@
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
+          "PCI-DSS-4",
           "SLSA-1-0",
           "SOC2-TSC"
         ],
-        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
-        "frameworks_intl_text": "ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
+          "CIS-CONTROLS-8": [
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
+          ],
           "ISO-22301-2019": [
             "C-OPS-BCP"
           ],
           "ISO-27001-2022": [
-            "C-LOG-AUDIT"
+            "C-LOG-AUDIT",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-27018-2019": [
             "C-LOG-AUDIT"
@@ -12174,6 +12866,7 @@
             "C-LOG-AUDIT"
           ],
           "NIST-800-161r1": [
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
@@ -12185,22 +12878,35 @@
           ],
           "NIST-SSDF-800-218": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
             "C-SC-SIGN",
             "C-SDLC-TRACE"
           ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
+          ],
           "OWASP-TOP10-2025": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
+          "PCI-DSS-4": [
+            "C-SC-REGISTRY"
+          ],
           "SLSA-1-0": [
             "C-SC-PIN",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
             "C-SC-SIGN",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
           ],
           "TH-CCA-2560": [
             "C-LOG-90",
@@ -12226,10 +12932,14 @@
             "C-LOG-AUDIT",
             "C-WEB-SELF"
           ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
           "TH-NCSA-MIN-2566": [
             "C-LOG-90",
             "C-LOG-AUDIT",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
           ],
           "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
@@ -12241,8 +12951,8 @@
             "C-LOG-AUDIT"
           ]
         },
-        "control_count": 9,
-        "framework_count": 22
+        "control_count": 10,
+        "framework_count": 28
       }
     },
     {
@@ -12777,6 +13487,7 @@
           "TH-CYBER-2562",
           "TH-DGA-MSPR11-2566",
           "TH-ETDA-CLOUD",
+          "TH-NCSA-CLOUD-2567",
           "TH-NCSA-MIN-2566",
           "TH-NCSA-RAM-2564",
           "TH-NCSA-WEB-2568",
@@ -12784,27 +13495,41 @@
         ],
         "frameworks_intl": [
           "CIS-CONTROLS-8",
+          "CSA-CCM-4",
           "ISO-22301-2019",
           "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-42001-2023",
           "NIST-800-161r1",
           "NIST-800-53r5",
           "NIST-CSF-2",
+          "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
+          "PCI-DSS-4",
+          "SLSA-1-0",
           "SOC2-TSC"
         ],
-        "frameworks_th_text": "พ.ร.บ. ไซเบอร์ 2562; มสพร. 11-2566 เว็บไซต์ภาครัฐ 3.0; ขมธอ. การใช้บริการคลาวด์; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; พ.ร.ฎ. วิธีการแบบปลอดภัย 2553",
-        "frameworks_intl_text": "CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; OWASP Top 10:2025; SOC 2 (TSC)",
+        "frameworks_th_text": "พ.ร.บ. ไซเบอร์ 2562; มสพร. 11-2566 เว็บไซต์ภาครัฐ 3.0; ขมธอ. การใช้บริการคลาวด์; มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; พ.ร.ฎ. วิธีการแบบปลอดภัย 2553",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-CONTROLS-8": [
-            "C-OPS-BACKUP"
+            "C-OPS-BACKUP",
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
           ],
           "ISO-22301-2019": [
             "C-OPS-BACKUP",
             "C-OPS-BCP"
           ],
           "ISO-27001-2022": [
-            "C-OPS-BACKUP"
+            "C-OPS-BACKUP",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-42001-2023": [
             "C-AI-GOV"
@@ -12818,11 +13543,24 @@
           "NIST-CSF-2": [
             "C-OPS-BCP"
           ],
+          "NIST-SSDF-800-218": [
+            "C-SC-REGISTRY"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
+          ],
           "OWASP-TOP10-2025": [
             "C-SC-REGISTRY"
           ],
+          "PCI-DSS-4": [
+            "C-SC-REGISTRY"
+          ],
+          "SLSA-1-0": [
+            "C-SC-REGISTRY"
+          ],
           "SOC2-TSC": [
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
           ],
           "TH-CYBER-2562": [
             "C-OPS-BCP"
@@ -12833,9 +13571,13 @@
           "TH-ETDA-CLOUD": [
             "C-OPS-BACKUP"
           ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
           "TH-NCSA-MIN-2566": [
             "C-OPS-BACKUP",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-REGISTRY"
           ],
           "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
@@ -12848,7 +13590,7 @@
           ]
         },
         "control_count": 4,
-        "framework_count": 16
+        "framework_count": 23
       }
     },
     {
@@ -13665,7 +14407,8 @@
         "pipeline",
         "audit_trail",
         "quality_gate",
-        "deploy_strategy"
+        "deploy_strategy",
+        "package_repo"
       ],
       "grade": "commercial",
       "license": "Proprietary (SaaS)",
@@ -13706,7 +14449,7 @@
         "aiml"
       ],
       "sizing_ref": "Managed service — no self-hosted resource needed; pricing per user/pipeline minute",
-      "note_th": "CI/CD แบบ managed ของ Microsoft รวม Git, Boards, Pipelines, Artifacts, Test Plans ในที่เดียว รองรับ hybrid agent สำหรับ on-premise build",
+      "note_th": "CI/CD แบบ managed ของ Microsoft รวม Git, Boards, Pipelines, Azure Artifacts (Maven/npm/NuGet/PyPI), Test Plans ในที่เดียว รองรับ hybrid agent สำหรับ on-premise build",
       "managed": true,
       "fit": [
         "cloud",
@@ -13724,6 +14467,7 @@
       "compliance": {
         "controls_full": [
           "C-LOG-AUDIT",
+          "C-SC-PKG",
           "C-SDLC-REVIEW"
         ],
         "controls_partial": [
@@ -13731,6 +14475,7 @@
           "C-LOG-90",
           "C-OPS-BCP",
           "C-OPS-DEPLOY",
+          "C-SC-PROMOTE",
           "C-SDLC-THREAT",
           "C-SDLC-TRACE",
           "C-WEB-SELF"
@@ -13742,6 +14487,7 @@
           "TH-EGOV-2565",
           "TH-ETDA-ESIGN",
           "TH-ITA-NACC",
+          "TH-NCSA-CLOUD-2567",
           "TH-NCSA-MIN-2566",
           "TH-NCSA-RAM-2564",
           "TH-NCSA-WEB-2568",
@@ -13749,33 +14495,47 @@
         ],
         "frameworks_intl": [
           "CIS-CONTROLS-8",
+          "CSA-CCM-4",
           "ISO-22301-2019",
           "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-27018-2019",
           "ISO-27034",
           "ISO-27701-2019",
           "ISO-42001-2023",
+          "NIST-800-161r1",
           "NIST-800-53r5",
           "NIST-CSF-2",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-SAMM-2",
           "OWASP-TOP10-2025",
+          "PCI-DSS-4",
           "SLSA-1-0",
           "SOC2-TSC"
         ],
-        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
-        "frameworks_intl_text": "CIS Controls v8.1; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27018; ISO/IEC 27034; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP SAMM 2; OWASP Top 10:2025; SLSA v1.0; SOC 2 (TSC)",
+        "frameworks_th_text": "พ.ร.บ. คอมพิวเตอร์ 2550/2560; พ.ร.บ. ไซเบอร์ 2562; มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; ITA (ป.ป.ช.); มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566; กรอบมาตรฐานไซเบอร์ 2564; มาตรฐานเว็บไซต์ 2568; PDPA 2562",
+        "frameworks_intl_text": "CIS Controls v8.1; CSA CCM v4 / STAR; ISO 22301:2019; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 27018; ISO/IEC 27034; ISO/IEC 27701; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SP 800-53r5; NIST CSF 2.0; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP SAMM 2; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-CONTROLS-8": [
-            "C-OPS-DEPLOY"
+            "C-OPS-DEPLOY",
+            "C-SC-PKG"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-PKG"
           ],
           "ISO-22301-2019": [
             "C-OPS-BCP"
           ],
           "ISO-27001-2022": [
             "C-LOG-AUDIT",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW",
             "C-SDLC-THREAT"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-PKG"
           ],
           "ISO-27018-2019": [
             "C-LOG-AUDIT"
@@ -13790,6 +14550,10 @@
             "C-AI-GOV",
             "C-LOG-AUDIT"
           ],
+          "NIST-800-161r1": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE"
+          ],
           "NIST-800-53r5": [
             "C-LOG-AUDIT"
           ],
@@ -13797,23 +14561,36 @@
             "C-OPS-BCP"
           ],
           "NIST-SSDF-800-218": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW",
             "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-PKG"
           ],
           "OWASP-SAMM-2": [
             "C-SDLC-REVIEW",
             "C-SDLC-THREAT"
           ],
           "OWASP-TOP10-2025": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SDLC-THREAT"
           ],
+          "PCI-DSS-4": [
+            "C-SC-PKG"
+          ],
           "SLSA-1-0": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SDLC-TRACE"
           ],
           "SOC2-TSC": [
             "C-LOG-AUDIT",
             "C-OPS-BCP",
             "C-OPS-DEPLOY",
+            "C-SC-PROMOTE",
             "C-SDLC-REVIEW"
           ],
           "TH-CCA-2560": [
@@ -13840,10 +14617,14 @@
             "C-LOG-AUDIT",
             "C-WEB-SELF"
           ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-PKG"
+          ],
           "TH-NCSA-MIN-2566": [
             "C-LOG-90",
             "C-LOG-AUDIT",
-            "C-OPS-BCP"
+            "C-OPS-BCP",
+            "C-SC-PKG"
           ],
           "TH-NCSA-RAM-2564": [
             "C-OPS-BCP"
@@ -13855,8 +14636,8 @@
             "C-LOG-AUDIT"
           ]
         },
-        "control_count": 9,
-        "framework_count": 24
+        "control_count": 11,
+        "framework_count": 30
       }
     },
     {
@@ -14392,7 +15173,7 @@
     {
       "id": "azure-container-registry",
       "name": "Azure Container Registry (ACR)",
-      "stage": 4,
+      "stage": 5,
       "category": "Cloud Container Registry",
       "capabilities": [
         "registry",
@@ -14464,22 +15245,42 @@
           "C-AI-GOV"
         ],
         "frameworks_th": [
-          "TH-ETDA-ESIGN"
+          "TH-ETDA-ESIGN",
+          "TH-NCSA-CLOUD-2567",
+          "TH-NCSA-MIN-2566"
         ],
         "frameworks_intl": [
           "CIS-BENCH-K8S",
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
+          "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-42001-2023",
           "NIST-800-161r1",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
           "PCI-DSS-4",
-          "SLSA-1-0"
+          "SLSA-1-0",
+          "SOC2-TSC"
         ],
-        "frameworks_th_text": "ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์",
-        "frameworks_intl_text": "CIS Benchmarks; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SSDF (SP 800-218); OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0",
+        "frameworks_th_text": "ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; CSA CCM v4 / STAR; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-SC-CONTAINER"
+          ],
+          "CIS-CONTROLS-8": [
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27001-2022": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-42001-2023": [
             "C-AI-GOV"
@@ -14489,7 +15290,11 @@
             "C-SC-SIGN"
           ],
           "NIST-SSDF-800-218": [
+            "C-SC-REGISTRY",
             "C-SC-SIGN"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
           ],
           "OWASP-TOP10-2025": [
             "C-SC-CONTAINER",
@@ -14497,23 +15302,34 @@
             "C-SC-SIGN"
           ],
           "PCI-DSS-4": [
-            "C-SC-CONTAINER"
+            "C-SC-CONTAINER",
+            "C-SC-REGISTRY"
           ],
           "SLSA-1-0": [
+            "C-SC-REGISTRY",
             "C-SC-SIGN"
+          ],
+          "SOC2-TSC": [
+            "C-SC-REGISTRY"
           ],
           "TH-ETDA-ESIGN": [
             "C-SC-SIGN"
+          ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-MIN-2566": [
+            "C-SC-REGISTRY"
           ]
         },
         "control_count": 4,
-        "framework_count": 8
+        "framework_count": 16
       }
     },
     {
       "id": "aws-ecr",
       "name": "Amazon Elastic Container Registry (ECR)",
-      "stage": 4,
+      "stage": 5,
       "category": "Cloud Container Registry",
       "capabilities": [
         "registry",
@@ -14582,19 +15398,42 @@
         "controls_partial": [
           "C-AI-GOV"
         ],
-        "frameworks_th": [],
+        "frameworks_th": [
+          "TH-NCSA-CLOUD-2567",
+          "TH-NCSA-MIN-2566"
+        ],
         "frameworks_intl": [
           "CIS-BENCH-K8S",
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
+          "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-42001-2023",
           "NIST-800-161r1",
+          "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
-          "PCI-DSS-4"
+          "PCI-DSS-4",
+          "SLSA-1-0",
+          "SOC2-TSC"
         ],
-        "frameworks_th_text": "",
-        "frameworks_intl_text": "CIS Benchmarks; ISO/IEC 42001:2023; NIST SP 800-161r1; OWASP Top 10:2025; PCI DSS v4.0",
+        "frameworks_th_text": "มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; CSA CCM v4 / STAR; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-SC-CONTAINER"
+          ],
+          "CIS-CONTROLS-8": [
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27001-2022": [
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-REGISTRY"
           ],
           "ISO-42001-2023": [
             "C-AI-GOV"
@@ -14602,27 +15441,48 @@
           "NIST-800-161r1": [
             "C-SC-REGISTRY"
           ],
+          "NIST-SSDF-800-218": [
+            "C-SC-REGISTRY"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-REGISTRY"
+          ],
           "OWASP-TOP10-2025": [
             "C-SC-CONTAINER",
             "C-SC-REGISTRY"
           ],
           "PCI-DSS-4": [
-            "C-SC-CONTAINER"
+            "C-SC-CONTAINER",
+            "C-SC-REGISTRY"
+          ],
+          "SLSA-1-0": [
+            "C-SC-REGISTRY"
+          ],
+          "SOC2-TSC": [
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-MIN-2566": [
+            "C-SC-REGISTRY"
           ]
         },
         "control_count": 3,
-        "framework_count": 5
+        "framework_count": 15
       }
     },
     {
       "id": "gcp-artifact-registry",
       "name": "Google Artifact Registry (GAR)",
-      "stage": 4,
-      "category": "Cloud Container Registry",
+      "stage": 5,
+      "category": "Cloud Artifact Registry",
       "capabilities": [
         "registry",
+        "package_repo",
         "container_scan",
-        "artifact_sign"
+        "artifact_sign",
+        "version_tag"
       ],
       "grade": "commercial",
       "license": "Proprietary (SaaS)",
@@ -14633,6 +15493,7 @@
         "JFrog Artifactory Cloud"
       ],
       "oss_alt": [
+        "Nexus Repository OSS",
         "Harbor",
         "Zot"
       ],
@@ -14661,6 +15522,7 @@
         "gov",
         "enterprise",
         "internal",
+        "startup",
         "aiml"
       ],
       "sizing_ref": "Managed registry — supports Docker, Maven, npm, Python, Apt, Yum packages; integrates with Binary Authorization",
@@ -14682,63 +15544,133 @@
       "compliance": {
         "controls_full": [
           "C-SC-CONTAINER",
+          "C-SC-PKG",
+          "C-SC-PROMOTE",
           "C-SC-REGISTRY",
           "C-SC-SIGN"
         ],
         "controls_partial": [
-          "C-AI-GOV"
+          "C-AI-GOV",
+          "C-SC-PIN",
+          "C-SDLC-TRACE"
         ],
         "frameworks_th": [
-          "TH-ETDA-ESIGN"
+          "TH-DGA-OPENDATA",
+          "TH-EGOV-2565",
+          "TH-ETDA-ESIGN",
+          "TH-NCSA-CLOUD-2567",
+          "TH-NCSA-MIN-2566"
         ],
         "frameworks_intl": [
           "CIS-BENCH-K8S",
+          "CIS-CONTROLS-8",
+          "CSA-CCM-4",
+          "ISO-27001-2022",
+          "ISO-27002-2022",
           "ISO-42001-2023",
           "NIST-800-161r1",
           "NIST-SSDF-800-218",
+          "OWASP-ASVS-5",
           "OWASP-TOP10-2025",
           "PCI-DSS-4",
-          "SLSA-1-0"
+          "SLSA-1-0",
+          "SOC2-TSC"
         ],
-        "frameworks_th_text": "ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์",
-        "frameworks_intl_text": "CIS Benchmarks; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SSDF (SP 800-218); OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0",
+        "frameworks_th_text": "มาตรฐานข้อมูลเปิดภาครัฐ; พ.ร.บ. ปฏิบัติราชการทางอิเล็กทรอนิกส์ 2565; ขมธอ. ลายมือชื่อ/เอกสารอิเล็กทรอนิกส์; มาตรฐานคลาวด์ 2567; มาตรฐานขั้นต่ำ 2566",
+        "frameworks_intl_text": "CIS Benchmarks; CIS Controls v8.1; CSA CCM v4 / STAR; ISO/IEC 27001:2022; ISO/IEC 27002:2022; ISO/IEC 42001:2023; NIST SP 800-161r1; NIST SSDF (SP 800-218); OWASP ASVS 5.0; OWASP Top 10:2025; PCI DSS v4.0; SLSA v1.0; SOC 2 (TSC)",
         "framework_controls": {
           "CIS-BENCH-K8S": [
             "C-SC-CONTAINER"
+          ],
+          "CIS-CONTROLS-8": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "CSA-CCM-4": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27001-2022": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "ISO-27002-2022": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
           ],
           "ISO-42001-2023": [
             "C-AI-GOV"
           ],
           "NIST-800-161r1": [
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
           "NIST-SSDF-800-218": [
-            "C-SC-SIGN"
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN",
+            "C-SDLC-TRACE"
+          ],
+          "OWASP-ASVS-5": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
           ],
           "OWASP-TOP10-2025": [
             "C-SC-CONTAINER",
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
             "C-SC-REGISTRY",
             "C-SC-SIGN"
           ],
           "PCI-DSS-4": [
-            "C-SC-CONTAINER"
+            "C-SC-CONTAINER",
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
           ],
           "SLSA-1-0": [
-            "C-SC-SIGN"
+            "C-SC-PIN",
+            "C-SC-PKG",
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY",
+            "C-SC-SIGN",
+            "C-SDLC-TRACE"
+          ],
+          "SOC2-TSC": [
+            "C-SC-PROMOTE",
+            "C-SC-REGISTRY"
+          ],
+          "TH-DGA-OPENDATA": [
+            "C-SDLC-TRACE"
+          ],
+          "TH-EGOV-2565": [
+            "C-SDLC-TRACE"
           ],
           "TH-ETDA-ESIGN": [
             "C-SC-SIGN"
+          ],
+          "TH-NCSA-CLOUD-2567": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
+          ],
+          "TH-NCSA-MIN-2566": [
+            "C-SC-PKG",
+            "C-SC-REGISTRY"
           ]
         },
-        "control_count": 4,
-        "framework_count": 8
+        "control_count": 8,
+        "framework_count": 18
       }
     },
     {
       "id": "azure-kubernetes-service",
       "name": "Azure Kubernetes Service (AKS)",
-      "stage": 5,
+      "stage": 6,
       "category": "Cloud Container Orchestration",
       "capabilities": [
         "orchestration",
@@ -14912,7 +15844,7 @@
     {
       "id": "aws-eks",
       "name": "Amazon Elastic Kubernetes Service (EKS)",
-      "stage": 5,
+      "stage": 6,
       "category": "Cloud Container Orchestration",
       "capabilities": [
         "orchestration",
@@ -15085,7 +16017,7 @@
     {
       "id": "gcp-gke",
       "name": "Google Kubernetes Engine (GKE)",
-      "stage": 5,
+      "stage": 6,
       "category": "Cloud Container Orchestration",
       "capabilities": [
         "orchestration",
@@ -16456,6 +17388,7 @@
             "syft",
             "scancode",
             "minio",
+            "nexus-repository",
             "elasticsearch",
             "kibana",
             "owasp-zap",
@@ -16544,6 +17477,7 @@
           "role_th": "Store & Log: Container Registry, Object Storage, Secret Management, Log และ Audit Trail",
           "tools": [
             "harbor",
+            "nexus-repository",
             "minio",
             "elasticsearch",
             "logstash",
@@ -16674,6 +17608,7 @@
           "role_th": "Store & Log: Container Registry, Object Storage, Secret Management, Log และ Audit Trail",
           "tools": [
             "harbor",
+            "nexus-repository",
             "minio",
             "elasticsearch",
             "logstash",
@@ -16777,6 +17712,7 @@
             "mlflow",
             "llm-eval",
             "minio",
+            "nexus-repository",
             "filebeat",
             "elasticsearch",
             "kibana",
@@ -16886,6 +17822,7 @@
       "role_th": "Store & Log: Container Registry, Object Storage, Secret Management, Log และ Audit Trail",
       "tools": [
         "harbor",
+        "nexus-repository",
         "minio",
         "elasticsearch",
         "logstash",
@@ -16936,6 +17873,7 @@
         "syft",
         "scancode",
         "minio",
+        "nexus-repository",
         "elasticsearch",
         "kibana",
         "owasp-zap",
@@ -16956,6 +17894,7 @@
         "mlflow",
         "llm-eval",
         "minio",
+        "nexus-repository",
         "filebeat"
       ]
     }
@@ -17001,6 +17940,7 @@
             "syft",
             "scancode",
             "minio",
+            "nexus-repository",
             "elasticsearch",
             "kibana",
             "owasp-zap",
@@ -17089,6 +18029,7 @@
           "role_th": "Store & Log: Container Registry, Object Storage, Secret Management, Log และ Audit Trail",
           "tools": [
             "harbor",
+            "nexus-repository",
             "minio",
             "elasticsearch",
             "logstash",
@@ -17219,6 +18160,7 @@
           "role_th": "Store & Log: Container Registry, Object Storage, Secret Management, Log และ Audit Trail",
           "tools": [
             "harbor",
+            "nexus-repository",
             "minio",
             "elasticsearch",
             "logstash",
@@ -17322,6 +18264,7 @@
             "mlflow",
             "llm-eval",
             "minio",
+            "nexus-repository",
             "filebeat",
             "elasticsearch",
             "kibana",

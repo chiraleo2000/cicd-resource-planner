@@ -5,7 +5,7 @@
  * ========================================================================== */
 'use strict';
 
-const PIPE_SCHEMA = '1.3.0';
+const PIPE_SCHEMA = '1.3.1';
 
 const PIPE_STAGES = [
   { id: 'source', n: 1, label: 'Source Code' },
@@ -66,9 +66,20 @@ const JOB_SPECS = [
   ['load', 'test', ['locust'], ['deploy-uat'], 'weekly', 'uat', [],
     'Load test (Locust)', ['echo locust -f locustfile.py']],
   ['push-registry', 'store',
-    ['harbor', 'azure-container-registry', 'aws-ecr', 'gcp-artifact-registry'],
+    ['harbor', 'nexus-repository', 'zot',
+     'azure-container-registry', 'aws-ecr', 'gcp-artifact-registry'],
     ['image', 'sign', 'sbom'], 'build', null, ['G-10', 'G-11'],
-    'Push image + SBOM to registry', ['echo crane push ${IMAGE_REF}']],
+    'Push image + SBOM to registry',
+    ['docker tag "${IMAGE_REF}" "${REGISTRY}/${IMAGE}:${TAG}"',
+     'docker push "${REGISTRY}/${IMAGE}:${TAG}"',
+     'if [ -f sbom.json ]; then cosign attach sbom --sbom sbom.json "${REGISTRY}/${IMAGE}:${TAG}" || true; fi']],
+  ['push-packages', 'store',
+    ['nexus-repository', 'gcp-artifact-registry', 'azure-devops'],
+    ['compile', 'sbom'], 'build', null, ['G-10'],
+    'Publish Maven/npm/PyPI packages + SBOM to artifact repository',
+    ['if [ -f pom.xml ]; then mvn -B deploy -DskipTests -DaltDeploymentRepository=internal::default::${NEXUS_URL}/repository/maven-releases/; fi',
+     'if [ -f package.json ]; then npm publish --registry "${NEXUS_URL}/repository/npm-hosted/"; fi',
+     'if [ -f pyproject.toml ] || [ -f setup.py ]; then python3 -m twine upload -r internal dist/* || true; fi']],
   ['verify-sign', 'store', ['cosign'], ['push-registry'], 'release', null, ['G-11'],
     'Verify signature before deploy', ['cosign verify ${IMAGE_REF}']],
 ];
@@ -190,7 +201,7 @@ export function buildPipelineIR(toolIds, opts = {}) {
 
   const deployTool = pickTool(tset, DEPLOY_TOOLS);
   const deployJobs = [
-    ['deploy-dev', 'dev', 'auto', ['verify-sign', 'push-registry', 'image', 'compile'],
+    ['deploy-dev', 'dev', 'auto', ['verify-sign', 'push-registry', 'push-packages', 'image', 'compile'],
       [], 'Deploy DEV (auto)'],
     ['deploy-uat', 'uat', 'release', ['deploy-dev', 'dast', 'verify-sign'],
       ['G-01', 'G-02'], 'Deploy UAT + quality gate'],

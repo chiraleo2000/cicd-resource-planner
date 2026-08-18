@@ -1,8 +1,27 @@
 # DevSecOps CI/CD — Resource, Compliance & Skill Kit
 
-**Version 1.3.0** — env-aware catalog (cloud / hybrid / private / local), Helm and local Kubernetes, no tool pre-select, standards chips on place, Pipeline YAML + per-VM install `.sh`.
+**Version 1.3.1** — Store & Versioning adds Sonatype Nexus Repository OSS (Maven/npm/PyPI/Docker) and Zot, with package-repo controls mapped to Thai and international standards.
 
-**ใช้บนเว็บ (GitHub Pages):** [https://chiraleo2000.github.io/cicd-resource-planner/](https://chiraleo2000.github.io/cicd-resource-planner/)
+## GitHub Pages — เปิดใช้ได้เลย
+
+https://chiraleo2000.github.io/cicd-resource-planner/
+
+| หน้า | URL เต็ม |
+|------|-----------|
+| Planner (หน้าแรก) | https://chiraleo2000.github.io/cicd-resource-planner/ |
+| Standalone HTML | https://chiraleo2000.github.io/cicd-resource-planner/planner-standalone.html |
+| Air-gap copy | https://chiraleo2000.github.io/cicd-resource-planner/dist/planner-standalone.html |
+| Excel ตารางทรัพยากร | https://chiraleo2000.github.io/cicd-resource-planner/dist/CICD_Tool_Resource_Matrix.xlsx |
+| Catalog JSON | https://chiraleo2000.github.io/cicd-resource-planner/data/catalog.json |
+| รายงาน compliance | https://chiraleo2000.github.io/cicd-resource-planner/reports/compliance.md |
+| รายการลิงก์ทั้งหมด | https://chiraleo2000.github.io/cicd-resource-planner/pages.html |
+| ซอร์สบน GitHub | https://github.com/chiraleo2000/cicd-resource-planner |
+
+ใน Planner มี 7 แท็บ: วางแผนทรัพยากร, ตารางเครื่องมือ, Compliance, Storage, วิธีคำนวณ, **สถาปัตยกรรม**, **Pipeline และสคริปต์ติดตั้ง**
+
+หลัง push ขึ้น `main` ให้รอ job **Deploy to GitHub Pages** เสร็จ แล้วรีเฟรชแบบข้ามแคช (Ctrl+F5)
+
+---
 
 ชุดความรู้และเครื่องมือสำหรับออกแบบ **CI/CD แบบ DevSecOps** ให้โครงการพัฒนาซอฟต์แวร์ในไทย
 (ภาครัฐ / CII, เอกชน, internal, startup, AI/ML)
@@ -20,21 +39,6 @@
 ---
 
 ## เปิดโปรแกรมวางแผน
-
-### หน้าเว็บที่ deploy แล้ว
-
-| หน้า | URL |
-|------|-----|
-| **Planner (หน้าแรก)** | [https://chiraleo2000.github.io/cicd-resource-planner/](https://chiraleo2000.github.io/cicd-resource-planner/) |
-| สำเนา standalone | […/planner-standalone.html](https://chiraleo2000.github.io/cicd-resource-planner/planner-standalone.html) |
-| Air-gap copy ใน `dist/` | […/dist/planner-standalone.html](https://chiraleo2000.github.io/cicd-resource-planner/dist/planner-standalone.html) |
-| ตารางทรัพยากร (Excel) | […/dist/CICD_Tool_Resource_Matrix.xlsx](https://chiraleo2000.github.io/cicd-resource-planner/dist/CICD_Tool_Resource_Matrix.xlsx) |
-| Catalog JSON | […/data/catalog.json](https://chiraleo2000.github.io/cicd-resource-planner/data/catalog.json) |
-| รายงาน compliance ของผังอ้างอิง | […/reports/compliance.md](https://chiraleo2000.github.io/cicd-resource-planner/reports/compliance.md) |
-
-ใน Planner มี 7 แท็บ: วางแผนทรัพยากร, ตารางเครื่องมือ, Compliance, Storage, วิธีคำนวณ, **สถาปัตยกรรม**, **Pipeline และสคริปต์ติดตั้ง**
-
-หลัง push ขึ้น `main` workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) จะ build แล้ว deploy ชุดนี้ใหม่ — ถ้าเพจยังเป็นของเก่า ให้รอ job **Deploy to GitHub Pages** เสร็จ แล้วรีเฟรชแบบข้ามแคช (Ctrl+F5)
 
 ### เปิดบนเครื่องตัวเอง
 
@@ -91,7 +95,7 @@ graph LR
 | 2 Check | SAST, secret, SCA, license, quality | Critical = 0, ห้าม secret, ห้าม GPL/AGPL, coverage > 80% |
 | 3 Build | Rootless image, IaC scan, sign, SBOM | ลงนาม artifact + SBOM บังคับ |
 | 4 Test | DAST, API, WCAG AA, TLS 1.2+ | DAST ก่อนขึ้นโปรดักชัน |
-| 5 Store | Private registry, ตรวจลายเซ็น | ห้าม pull image ที่ไม่ verify |
+| 5 Store | Private OCI registry + คลังแพ็กเกจ (Nexus), ตรวจลายเซ็น | ห้าม pull image/package จากสาธารณะโดยไม่ verify |
 | 6 Operate | WAF, runtime, SIEM, log ≥ 90 วัน, BCP | แจ้งเหตุ PDPA 72 ชม., ซ้อมกู้คืนรายปี |
 
 รายละเอียดควบคุมและเครื่องมือครบอยู่ใน Planner แท็บ 2–3 และใน `skills/_shared/`.

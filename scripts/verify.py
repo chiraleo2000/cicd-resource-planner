@@ -40,8 +40,18 @@ def test_catalog_invariants():
     check(len(ids) == len(set(ids)), "tool id ซ้ำกัน")
     for need in ("helm", "k3s-control", "kind-k3d", "kubernetes-kubeadm",
                  "microk8s", "flux-cd", "tekton", "woodpecker", "podman-buildah",
-                 "kyverno", "dependency-track", "grafana-loki", "sealed-secrets"):
+                 "kyverno", "dependency-track", "grafana-loki", "sealed-secrets",
+                 "nexus-repository", "zot"):
         check(need in ids, "ขาดเครื่องมือ " + need)
+    nexus = next(t for t in C.TOOLS if t["id"] == "nexus-repository")
+    check(nexus["stage"] == 5, "Nexus ต้องอยู่ในขั้น 5 Store & Versioning")
+    check("package_repo" in nexus["capabilities"], "Nexus ต้องมี capability package_repo")
+    check(next(t for t in C.TOOLS if t["id"] == "azure-container-registry")["stage"] == 5,
+          "ACR ต้องอยู่ในขั้น Store ไม่ใช่ Test")
+    check(next(t for t in C.TOOLS if t["id"] == "azure-kubernetes-service")["stage"] == 6,
+          "AKS ต้องอยู่ในขั้น Deploy ไม่ใช่ Store")
+    check(any(c["id"] == "C-SC-PKG" for c in C.CONTROLS), "ขาดมาตรการ C-SC-PKG")
+    check(any(c["id"] == "C-SC-PROMOTE" for c in C.CONTROLS), "ขาดมาตรการ C-SC-PROMOTE")
     allcaps = set(C.CAPABILITIES)
     for t in C.TOOLS:
         bad = [c for c in t["capabilities"] if c not in allcaps]
@@ -352,6 +362,7 @@ def test_license_classes():
         "MPL-2.0": "weak-copyleft",
         "GPL-2.0": "strong-copyleft", "GPL-3.0 / Apache-2.0": "strong-copyleft",
         "AGPL-3.0": "network-copyleft",
+        "EPL-1.0": "weak-copyleft",
         "SSPL / Elastic License": "source-available", "BUSL-1.1 / MPL-2.0": "source-available",
         "RSALv2 / SSPL": "source-available", "N/A": "n/a",
     }
@@ -467,7 +478,7 @@ def test_pipeline_parity():
     fixtures = [
         dict(id="gov-core", tools=["gitea", "jenkins-master", "gitleaks", "semgrep",
                                    "trivy", "docker-buildkit", "syft", "cosign",
-                                   "owasp-zap", "harbor", "argocd"],
+                                   "owasp-zap", "harbor", "nexus-repository", "argocd"],
              profile="gov", disabled=[], vms=[]),
         dict(id="ent-gh", tools=["github-actions", "gitleaks", "trivy", "unit-test-runner"],
              profile="enterprise", disabled=["secret-scan"], vms=[]),

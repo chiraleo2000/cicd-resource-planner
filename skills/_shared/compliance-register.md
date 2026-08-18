@@ -199,6 +199,7 @@
 | CN-17 | Secrets | HashiCorp Vault / K8s Secrets | HashiCorp / CNCF | Secrets Management ป้องกันข้อมูลลับรั่วไหล | แนวปฏิบัติฯ 4.4 / Blueprint Stage 2 | https://developer.hashicorp.com/vault/docs |
 | CN-18 | Container | Distroless / Minimal Base Images | Google / OSS | ลด attack surface ของ container image | แนวปฏิบัติฯ 4.4 | https://github.com/GoogleContainerTools/distroless |
 | CN-19 | Registry | Harbor (Secure Container Registry + Content Trust) | CNCF Graduated | Registry ปลอดภัย + Audit Logs + Vulnerability Scanning | Blueprint Stage 5 | https://goharbor.io/ |
+| CN-19a | Package Repo | Sonatype Nexus Repository OSS (Maven/npm/PyPI/Docker/Helm) | Sonatype / EPL-1.0 | คลังแพ็กเกจภายใน + Upstream Proxy กัน typosquatting/dependency confusion | Blueprint Stage 5 | https://help.sonatype.com/en/sonatype-nexus-repository.html |
 | CN-20 | Vuln DB | OSV / OSV-Scanner, Trivy, Grype | OpenSSF / Aqua / Anchore | สแกนช่องโหว่ container และ dependency | Blueprint Stage 2-3 | https://osv.dev/ |
 | CN-21 | OpenSSF | OpenSSF Scorecard / Best Practices Badge | OpenSSF | ประเมินสุขภาพความปลอดภัยของ OSS project | Blueprint Stage 2 | https://scorecard.dev/ |
 | CN-22 | Framework | DevSecOps (Shift-Left Security in SDLC) | อุตสาหกรรม | ฝัง Security ทุกขั้นของ SDLC; Roles ในแต่ละ Development Stage | แนวปฏิบัติฯ 4.1 | https://www.cisa.gov/sites/default/files/2024-08/DevSecOps.pdf |
@@ -234,7 +235,7 @@
 | Stage 2 | Check & Scan (SAST/Secret/SCA/License/Quality) | SonarQube, Semgrep, GitLeaks, TruffleHog, OWASP Dependency-Check, Trivy, FOSSology | OWASP A01-A05; NIST SSDF; ISO 27001 A.14; PDPA ม.37 | Critical = 0, Block on secret detection, ห้าม GPL/AGPL, Coverage > 80% |
 | Stage 3 | Build & Run (Compile, Image, Scan, IaC, Signing) | Kaniko/Buildah, Trivy, Checkov/tfsec, KubeLinter, Cosign, Notary v2 | OWASP A02,A03,A08; NIST SP 800-161; SLSA; CIS Benchmarks | Rootless Build, Scan ทุก Layer, IaC Validation Mandatory, Artifact Signing Mandatory |
 | Stage 4 | Test Running (Unit/Integration/DAST/API/Perf) | JUnit/pytest, OWASP ZAP, Burp Suite, RESTler, K6/JMeter | มาตรฐานเว็บไซต์ 2568 (Penetration Testing); มาตรฐานขั้นต่ำฯ (VAPT ระดับสูง); OWASP ASVS | DAST Mandatory on Staging, Auth + RBAC Testing, SLA Testing required |
-| Stage 5 | Store & Versioning (Registry/Tag/SBOM/Sign/Audit) | Harbor, Syft, CycloneDX, SPDX, Cosign, ELK/Loki | NTIA SBOM; SPDX ISO 5962; NIST SP 800-161; พ.ร.บ.คอมพิวเตอร์ (Log) | Air-gapped Network, SBOM Mandatory, Verify before Deploy, เก็บ Audit 7+ ปี |
+| Stage 5 | Store & Versioning (Registry/Package/Tag/SBOM/Sign/Audit) | Harbor, Nexus Repository OSS, Zot, Syft, CycloneDX, SPDX, Cosign, ELK/Loki | NTIA SBOM; SPDX ISO 5962; NIST SP 800-161; NIST SSDF PS.3/PW.4; OWASP A03; พ.ร.บ.คอมพิวเตอร์ (Log) | Air-gapped Network, Private Maven/npm proxy, SBOM Mandatory, Verify before Deploy, เก็บ Audit 7+ ปี |
 | Stage 6 | Deploy & Operations (Gate/Strategy/Orchestration/Runtime/Monitor) | OPA Gates, Argo Rollouts, Kubernetes, Falco, Prometheus+Grafana | NIST SP 800-207 (Zero Trust); K8s PSS; มาตรฐานคลาวด์ 2567; NIST CSF 2.0 | CISO Approval, Blue-Green, RBAC Strict Mode, Runtime Monitoring Mandatory, 24/7 SOC |
 
 ## 06_WASS_WebAppSecurityService

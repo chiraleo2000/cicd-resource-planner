@@ -48,7 +48,8 @@ IR fields:
 | 4 test | `a11y` | `playwright-a11y` | |
 | 4 test | `tls` | `testssl` then `cbomkit` | |
 | 4 test | `load` | `locust` | |
-| 5 store | `push-registry` | `harbor` / cloud registry | G-10 G-11 |
+| 5 store | `push-registry` | `harbor` / `nexus-repository` / `zot` / cloud registry | G-10 G-11 |
+| 5 store | `push-packages` | `nexus-repository` / GAR / Azure Artifacts | G-10 |
 | 5 store | `verify-sign` | `cosign` | G-11 |
 | 6 deploy | `deploy-dev` / `deploy-uat` / `deploy-prod` / `deploy-dr` | `argocd` / `k3s-control` / cloud K8s | G-01 G-11 |
 | 6 deploy | `waf-review` / `runtime` / `backup` | `modsecurity` / `falco` / `velero-restic` | |

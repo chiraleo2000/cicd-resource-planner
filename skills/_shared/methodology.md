@@ -63,7 +63,7 @@ Profile → mandatory frameworks → controls (by impact)
 | 2 | Check & Scan | SAST, secret, SCA, license, quality gate | SonarQube, Semgrep, GitLeaks, Trivy, ScanCode |
 | 3 | Build & Sign | Compile, image build (rootless), IaC scan, Cosign, SBOM | BuildKit/Kaniko, Checkov, Cosign, Syft |
 | 4 | Test | Unit/integration, DAST, API, a11y, TLS, load | pytest/Jest, ZAP, Nuclei, Playwright+axe, Locust |
-| 5 | Store & Version | Private registry, object store, SBOM+sig verify, secrets, logs ≥90d | Harbor, MinIO, OpenSearch, OpenBao/Vault |
+| 5 | Store & Version | Private OCI registry, Maven/npm/PyPI repo + proxy, object store, SBOM+sig verify, secrets, logs ≥90d | Harbor + Nexus Repository, Zot, MinIO, OpenSearch, OpenBao/Vault |
 | 6 | Deploy & Operate | GitOps, orchestration, WAF, runtime, SIEM, backup/DR | Argo CD, K3s, Falco, Prometheus, Velero |
 
 Government / CII extras: on-prem or air-gap, no GPL/AGPL without a commercial license, SBOM + signature mandatory, DAST before prod, log retention ≥90 days, audit ≥7 years.

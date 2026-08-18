@@ -32,19 +32,18 @@ git push -u origin main
 
 ## 3. URL ที่จะได้
 
-```
-https://<ORG_หรือ_USER>.github.io/cicd-resource-planner/
-```
-
-หน้าอื่นที่ deploy ไปด้วย
+https://chiraleo2000.github.io/cicd-resource-planner/
 
 | ไฟล์ | URL |
 |---|---|
-| โปรแกรมวางแผน | `https://<owner>.github.io/cicd-resource-planner/` |
-| Excel | `.../dist/CICD_Tool_Resource_Matrix.xlsx` |
-| HTML ไฟล์เดียว (Air-gapped) | `.../dist/planner-standalone.html` |
-| ข้อมูลกลาง | `.../data/catalog.json` |
-| รายงาน Compliance ของผังอ้างอิง | `.../reports/compliance.md` |
+| โปรแกรมวางแผน | https://chiraleo2000.github.io/cicd-resource-planner/ |
+| รายการลิงก์ทั้งหมด | https://chiraleo2000.github.io/cicd-resource-planner/pages.html |
+| Excel | https://chiraleo2000.github.io/cicd-resource-planner/dist/CICD_Tool_Resource_Matrix.xlsx |
+| HTML ไฟล์เดียว (Air-gapped) | https://chiraleo2000.github.io/cicd-resource-planner/dist/planner-standalone.html |
+| Standalone ที่ราก | https://chiraleo2000.github.io/cicd-resource-planner/planner-standalone.html |
+| ข้อมูลกลาง | https://chiraleo2000.github.io/cicd-resource-planner/data/catalog.json |
+| รายงาน Compliance ของผังอ้างอิง | https://chiraleo2000.github.io/cicd-resource-planner/reports/compliance.md |
+| README บน Pages | https://chiraleo2000.github.io/cicd-resource-planner/README.md |
 
 URL จริงจะแสดงในผลลัพธ์ของ job `deploy` ใน workflow run ด้วย
 

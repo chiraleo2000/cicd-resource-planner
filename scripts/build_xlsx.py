@@ -567,6 +567,9 @@ def sheet_storage(wb):
         "minio": "ตั้ง Object Lifecycle: ลบ artifact ที่ไม่ใช่ release เมื่อครบ 30-90 วัน; "
                  "เปิด Versioning เฉพาะ bucket ที่จำเป็น เพราะ version เก่ากินที่เท่าตัว",
         "harbor": "ตั้ง Tag Retention Policy (เก็บ 10 tag ล่าสุดต่อ repo) + เปิด Garbage Collection รายสัปดาห์",
+        "nexus-repository": "แยก blob store ตามชนิด repo; เปิด Cleanup Policy ของ snapshot/proxy cache "
+                            "(เช่น ลบ snapshot หลัง 30 วัน เก็บ release ถาวร); ห้ามเปิด Redeploy บน maven-releases",
+        "zot": "ตั้ง retention ของ tag ที่ไม่ใช่ release และจำกัดขนาด blob store",
         "docker-buildkit": "ตั้ง cron `docker system prune -af --filter until=336h` และจำกัด BuildKit cache "
                            "ด้วย --max-used-space",
         "jenkins-agent": "ใช้ cleanWs() ทุกท้าย Pipeline และตั้ง Workspace Cleanup Plugin",

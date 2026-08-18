@@ -57,8 +57,8 @@ def main():
 
     if not catalog.get("tools"):
         raise SystemExit("catalog.json ไม่มี tools — รัน python scripts/build_catalog.py ก่อน")
-    if catalog.get("schema_version") != "1.3.0":
-        print("[warn] schema_version =", catalog.get("schema_version"), "(คาด 1.3.0)")
+    if catalog.get("schema_version") != "1.3.1":
+        print("[warn] schema_version =", catalog.get("schema_version"), "(คาด 1.3.1)")
 
     html = html.replace(
         '<link rel="stylesheet" href="assets/style.css">',

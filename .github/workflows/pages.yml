@@ -54,6 +54,7 @@ jobs:
           cp -r data _site/data
           cp -r plans _site/plans
           cp README.md _site/README.md
+          cp pages.html _site/pages.html
           touch _site/.nojekyll
           grep -q 'window.__STANDALONE__=true' _site/index.html
           grep -q 'panel-architecture' _site/index.html
