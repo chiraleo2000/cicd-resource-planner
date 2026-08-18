@@ -1,6 +1,8 @@
 # DevSecOps CI/CD — Resource, Compliance & Skill Kit
 
-**Version 1.2.0** — self-contained planner: W% 20–60% with a per-VM ladder, Architecture + Pipeline YAML pages, catalog embedded (no JSON fetch).
+**Version 1.3.0** — env-aware catalog (cloud / hybrid / private / local), Helm and local Kubernetes, no tool pre-select, standards chips on place, Pipeline YAML + per-VM install `.sh`.
+
+**ใช้บนเว็บ (GitHub Pages):** [https://chiraleo2000.github.io/cicd-resource-planner/](https://chiraleo2000.github.io/cicd-resource-planner/)
 
 ชุดความรู้และเครื่องมือสำหรับออกแบบ **CI/CD แบบ DevSecOps** ให้โครงการพัฒนาซอฟต์แวร์ในไทย
 (ภาครัฐ / CII, เอกชน, internal, startup, AI/ML)
@@ -18,6 +20,23 @@
 ---
 
 ## เปิดโปรแกรมวางแผน
+
+### หน้าเว็บที่ deploy แล้ว
+
+| หน้า | URL |
+|------|-----|
+| **Planner (หน้าแรก)** | [https://chiraleo2000.github.io/cicd-resource-planner/](https://chiraleo2000.github.io/cicd-resource-planner/) |
+| สำเนา standalone | […/planner-standalone.html](https://chiraleo2000.github.io/cicd-resource-planner/planner-standalone.html) |
+| Air-gap copy ใน `dist/` | […/dist/planner-standalone.html](https://chiraleo2000.github.io/cicd-resource-planner/dist/planner-standalone.html) |
+| ตารางทรัพยากร (Excel) | […/dist/CICD_Tool_Resource_Matrix.xlsx](https://chiraleo2000.github.io/cicd-resource-planner/dist/CICD_Tool_Resource_Matrix.xlsx) |
+| Catalog JSON | […/data/catalog.json](https://chiraleo2000.github.io/cicd-resource-planner/data/catalog.json) |
+| รายงาน compliance ของผังอ้างอิง | […/reports/compliance.md](https://chiraleo2000.github.io/cicd-resource-planner/reports/compliance.md) |
+
+ใน Planner มี 7 แท็บ: วางแผนทรัพยากร, ตารางเครื่องมือ, Compliance, Storage, วิธีคำนวณ, **สถาปัตยกรรม**, **Pipeline และสคริปต์ติดตั้ง**
+
+หลัง push ขึ้น `main` workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) จะ build แล้ว deploy ชุดนี้ใหม่ — ถ้าเพจยังเป็นของเก่า ให้รอ job **Deploy to GitHub Pages** เสร็จ แล้วรีเฟรชแบบข้ามแคช (Ctrl+F5)
+
+### เปิดบนเครื่องตัวเอง
 
 `index.html` ที่รากเป็นไฟล์เดียวจบ — ข้อมูลฝังในไฟล์แล้ว **ไม่ fetch JSON**
 
@@ -107,7 +126,7 @@ REQUIRED           = MAX(A, B, C) + OS reserve
 
 น้ำหนักเดี่ยว 20–60% (`w_solo = 0.20 + 0.40 × activity_index`) แล้วลดเพดานตามจำนวนเครื่องมือ self-hosted บน VM นั้น: 60% → 20% ที่ n = 8+
 
-แท็บ **6. สถาปัตยกรรม** และ **7. Pipeline YAML** สร้าง mermaid + สคริปต์ GitLab/GitHub/Azure/Jenkins จากเครื่องมือที่เลือก
+แท็บ **6. สถาปัตยกรรม** และ **7. Pipeline และสคริปต์ติดตั้ง** สร้าง mermaid + YAML (GitLab/GitHub/Azure/Jenkins) และไฟล์ `install/*.sh` ต่อเครื่อง จากเครื่องมือที่เลือก
 
 Scale Factor จากปริมาณงานจริง (ฐาน = 10 build/วัน, 2 แอป, ทีม 10 คน):
 
@@ -152,7 +171,7 @@ python skills/compile_skills.py
 
 ## Skill packs (compile ไปทุกเครื่องมือ)
 
-แหล่งกลางอยู่ที่ `skills/_shared/` — รัน `python skills/compile_skills.py` แล้วได้ไฟล์พร้อมวางในแต่ละเครื่องมือ **เนื้อหา compliance + 72 เครื่องมือ + เอกสารอ้างอิงชุดเดียวกัน**
+แหล่งกลางอยู่ที่ `skills/_shared/` — รัน `python skills/compile_skills.py` แล้วได้ไฟล์พร้อมวางในแต่ละเครื่องมือ **เนื้อหา compliance + catalog เครื่องมือ + เอกสารอ้างอิงชุดเดียวกัน**
 
 | เครื่องมือ | ไฟล์ที่ compile แล้ว | วิธีใช้ |
 |------------|----------------------|---------|
@@ -195,4 +214,8 @@ python skills/compile_skills.py
 
 `.github/workflows/ci.yml` จะ fail ถ้า `data/catalog.json` ไม่ตรงซอร์ส, ถ้า engine Python กับ JavaScript ให้คนละผล, หรือถ้าผังอ้างอิงใน `plans/arch-*.json` ต่ำกว่าเกณฑ์ compliance
 
-`.github/workflows/pages.yml` build แล้ว deploy Planner ขึ้น GitHub Pages (Settings → Pages → Source = GitHub Actions)
+`.github/workflows/pages.yml` build แล้ว deploy Planner ขึ้น GitHub Pages
+
+**หน้าเว็บ:** [https://chiraleo2000.github.io/cicd-resource-planner/](https://chiraleo2000.github.io/cicd-resource-planner/)
+
+(Settings → Pages → Source = GitHub Actions — เปิดครั้งเดียวตอนสร้าง repo)
