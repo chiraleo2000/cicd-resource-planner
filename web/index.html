@@ -35,7 +35,7 @@
     <button type="button" role="tab" id="tab-storage" data-tab="storage" aria-controls="panel-storage" aria-selected="false" tabindex="-1">4. Storage</button>
     <button type="button" role="tab" id="tab-method" data-tab="method" aria-controls="panel-method" aria-selected="false" tabindex="-1">5. วิธีคำนวณ</button>
     <button type="button" role="tab" id="tab-architecture" data-tab="architecture" aria-controls="panel-architecture" aria-selected="false" tabindex="-1">6. สถาปัตยกรรม</button>
-    <button type="button" role="tab" id="tab-pipeline" data-tab="pipeline" aria-controls="panel-pipeline" aria-selected="false" tabindex="-1">7. Pipeline YAML</button>
+    <button type="button" role="tab" id="tab-pipeline" data-tab="pipeline" aria-controls="panel-pipeline" aria-selected="false" tabindex="-1">7. Pipeline และสคริปต์ติดตั้ง</button>
   </nav>
 
   <!-- ================================================= PANEL 1 : PLANNER -->
@@ -68,7 +68,7 @@
     <div class="card">
       <h2><span class="stepno">2</span> เลือกมาตรฐานที่โครงการต้องปฏิบัติ</h2>
       <p class="hint">ติ๊กเลือกได้ทีละฉบับ ไม่ใช่เลือกเป็นกลุ่มรวม — แต่ละฉบับผูกกับ “มาตรการที่ต้องทำ” ของตัวเอง
-        เปลี่ยนการเลือกแล้วรายการเครื่องมือและทรัพยากรจะคำนวณใหม่ทันที</p>
+        เปลี่ยนการเลือกแล้วช่องว่างและคะแนนจะคำนวณใหม่ทันที (ไม่เขียนทับเครื่องมือที่เลือกไว้)</p>
       <div class="btnrow noprint" style="margin-bottom:10px">
         <span class="lbl2" style="margin:0">ชุดสำเร็จ:</span>
         <span id="fwPresets" class="btnrow"></span>
@@ -112,6 +112,11 @@
           <div class="togrow" id="envRow"></div>
           <div class="hint">“มี…ส่วนกลางแล้ว” = ถือว่า capability นั้นถูกครอบคลุมโดยระบบขององค์กร
             ไม่ต้องติดตั้งซ้ำในโครงการนี้</div>
+
+          <div class="lbl2" style="margin-top:12px">สภาพแวดล้อมที่ติดตั้ง CI/CD</div>
+          <div class="togrow" id="fitRow"></div>
+          <div class="hint">กรองรายการเครื่องมือตามที่ติดตั้งได้จริง — ค่าเริ่มต้นคือทั้งหมด
+            (cloud, hybrid, private, local) ไม่ซ่อนรายการจนกว่าจะเลือก</div>
         </div>
         <div>
           <div class="lbl2">ปริมาณงานจริงของโครงการ</div>
@@ -152,6 +157,7 @@
           <button class="btn ghost" id="btnClearTools">ล้างเครื่องมือทั้งหมด</button>
         </div>
       </div>
+      <div id="toolHint" class="hint" style="margin-top:8px"></div>
       <div id="coverBar" style="margin-top:10px"></div>
       <div class="btnrow noprint" style="margin:10px 0">
         <span class="lbl2" style="margin:0">แสดง:</span>
@@ -278,16 +284,20 @@
   <section class="panel" id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline" hidden>
     <div class="card">
       <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
-        <h2 style="margin:0">ออกแบบสคริปต์ Pipeline (YAML)</h2>
+        <h2 style="margin:0">Pipeline และสคริปต์ติดตั้ง</h2>
         <div class="btnrow noprint">
-          <button class="btn small" id="btnCopyYaml" type="button">คัดลอก YAML</button>
-          <button class="btn small primary" id="btnDlYaml" type="button">ดาวน์โหลดไฟล์</button>
+          <button class="btn small" id="btnCopyYaml" type="button">คัดลอกไฟล์ที่เปิดอยู่</button>
+          <button class="btn small" id="btnDlYaml" type="button">ดาวน์โหลดไฟล์นี้</button>
+          <button class="btn small primary" id="btnDlPack" type="button">ดาวน์โหลดทั้งชุด (ZIP)</button>
         </div>
       </div>
-      <p class="hint">งานถูกใส่เฉพาะเมื่อเลือกเครื่องมือนั้นแล้ว ขั้นสุดท้ายคือ deploy ต่อสภาพแวดล้อม
-        (Dev อัตโนมัติ → UAT มี DAST/quality gate → Prod ต้องอนุมัติ)</p>
-      <div class="lbl2">รูปแบบไฟล์</div>
+      <p class="hint">YAML สำหรับรัน pipeline และไฟล์ <code>.sh</code> สำหรับติดตั้งเครื่องมือ/ไลบรารีต่อเครื่อง
+        ตามผัง VM — โหมดปิดเครือข่ายวางไบนารีใน <code>vendor/</code> แล้วตั้ง <code>MIRROR</code></p>
+      <div class="lbl2">ชนิดไฟล์</div>
+      <div class="togrow" id="pipeKindRow"></div>
+      <div class="lbl2">รูปแบบ Pipeline</div>
       <div class="togrow" id="pipeFlavorRow"></div>
+      <div id="pipeFileRow" class="togrow" style="margin-top:8px"></div>
       <div id="pipeMeta" class="hint" style="margin:8px 0"></div>
     </div>
     <div class="grid2">
@@ -297,7 +307,7 @@
       </div>
       <div class="card">
         <h3>สคริปต์ที่สร้างให้</h3>
-        <label class="sronly" for="pipeYaml">สคริปต์ Pipeline ที่สร้างให้</label>
+        <label class="sronly" for="pipeYaml">สคริปต์ที่สร้างให้</label>
         <textarea id="pipeYaml" class="mono yamlbox" rows="28" spellcheck="false"></textarea>
       </div>
     </div>

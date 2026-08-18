@@ -77,6 +77,7 @@ def build() -> dict:
             "5": "Store & Versioning (จัดเก็บและจัดการเวอร์ชัน)",
             "6": "Deploy & Update (ขึ้นระบบและดูแลรักษา)",
         },
+        "fit_labels": C.FIT_LABELS,
         "regions": {"th": "กฎหมายและมาตรฐานภายในประเทศไทย", "intl": "มาตรฐานสากล"},
         "severity_th": {"mandatory": "บังคับ", "conditional": "บังคับเมื่อผลกระทบสูง",
                         "recommended": "แนะนำ"},

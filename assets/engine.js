@@ -288,8 +288,13 @@ export class Planner {
     return s;
   }
 
+  toolFits(t, fit) {
+    if (!fit || fit === 'all') return true;
+    return (t.fit || []).includes(fit);
+  }
+
   complianceCheck(toolIds, profileId = 'gov', impact = null, frameworks = null,
-                  licenseBlocklist = null, externalCaps = null) {
+                  licenseBlocklist = null, externalCaps = null, fit = null) {
     const prof = this.profileById.get(profileId) || this.profileById.get('gov');
     const imp = impact || prof.impact;
     const fws = this.resolveFrameworks(profileId, frameworks);
@@ -327,7 +332,7 @@ export class Planner {
     const recommendations = [];
     let remaining = new Set(Object.keys(gaps));
     let pool = this.c.tools.filter(t => t.profiles.includes(profileId) &&
-      !toolIds.includes(t.id) && licenseOk(t));
+      !toolIds.includes(t.id) && licenseOk(t) && this.toolFits(t, fit));
     let guard = 0;
     while (remaining.size && guard++ < 80) {
       let best = null, bestHit = new Set();
@@ -378,13 +383,13 @@ export class Planner {
 
   /** ชุดเครื่องมือที่น้อยที่สุดที่ทำให้ผ่านมาตรฐานที่เลือก (ใช้สร้างแผนอัตโนมัติ) */
   requiredTools(frameworks, profileId = 'gov', impact = 'high',
-                licenseBlocklist = null, seedTools = null, externalCaps = null) {
+                licenseBlocklist = null, seedTools = null, externalCaps = null, fit = null) {
     const seed = [...(seedTools || [])];
     const first = this.complianceCheck(seed, profileId, impact, frameworks, licenseBlocklist,
-                                       externalCaps);
+                                       externalCaps, fit);
     const tools = seed.concat(first.recommendations.map(x => x.tool_id));
     const final = this.complianceCheck(tools, profileId, impact, frameworks, licenseBlocklist,
-                                       externalCaps);
+                                       externalCaps, fit);
     return { tools, added: first.recommendations.map(x => x.tool_id),
              compliance: final, uncovered_caps: final.uncovered_caps };
   }

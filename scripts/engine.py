@@ -328,8 +328,16 @@ def required_capabilities(frameworks: list, impact: str = "high") -> dict:
     return {k: sorted(set(v)) for k, v in sorted(need.items())}
 
 
+def tool_fits(t: dict, fit) -> bool:
+    """True ถ้าไม่กรองสภาพแวดล้อม หรือเครื่องมือรองรับสภาพแวดล้อมนั้น"""
+    if not fit or fit in ("all", ""):
+        return True
+    return fit in (t.get("fit") or [])
+
+
 def compliance_check(tool_ids: list, profile_id: str = "gov", impact: str | None = None,
-                     frameworks=None, license_blocklist=None, external_caps=None) -> dict:
+                     frameworks=None, license_blocklist=None, external_caps=None,
+                     fit=None) -> dict:
     """ตรวจว่าชุดเครื่องมือที่เลือกครอบคลุมมาตรฐานที่เลือกครบหรือไม่
     และแนะนำเครื่องมือที่ควรเพิ่มเพื่อปิดช่องว่าง (Automation เลือกเครื่องมือให้ผ่านมาตรฐาน)
 
@@ -378,7 +386,8 @@ def compliance_check(tool_ids: list, profile_id: str = "gov", impact: str | None
     recommendations = []
     remaining = set(gaps)
     pool = [t for t in TOOLS
-            if profile_id in t["profiles"] and t["id"] not in tool_ids and license_ok(t)]
+            if profile_id in t["profiles"] and t["id"] not in tool_ids
+            and license_ok(t) and tool_fits(t, fit)]
     guard = 0
     while remaining and guard < 80:
         guard += 1
@@ -433,12 +442,15 @@ def compliance_check(tool_ids: list, profile_id: str = "gov", impact: str | None
 
 
 def required_tools(frameworks: list, profile_id: str = "gov", impact: str = "high",
-                   license_blocklist=None, seed_tools=None, external_caps=None) -> dict:
+                   license_blocklist=None, seed_tools=None, external_caps=None,
+                   fit=None) -> dict:
     """หาชุดเครื่องมือที่น้อยที่สุดที่ทำให้ผ่านมาตรฐานที่เลือก (ใช้สร้างแผนอัตโนมัติ)"""
     seed = list(seed_tools or [])
-    r = compliance_check(seed, profile_id, impact, frameworks, license_blocklist, external_caps)
+    r = compliance_check(seed, profile_id, impact, frameworks, license_blocklist,
+                         external_caps, fit)
     tools = seed + [x["tool_id"] for x in r["recommendations"]]
-    final = compliance_check(tools, profile_id, impact, frameworks, license_blocklist, external_caps)
+    final = compliance_check(tools, profile_id, impact, frameworks, license_blocklist,
+                             external_caps, fit)
     return dict(tools=tools, added=[x["tool_id"] for x in r["recommendations"]],
                 compliance=final, uncovered_caps=final["uncovered_caps"])
 

@@ -9,13 +9,13 @@
  *   4 เครื่องมือที่ต้องติดตั้ง   -> เลือกเองหรือให้ระบบเลือกให้ (greedy set-cover)
  *   5 จัดลง VM                 -> คำนวณ A / B1 / B2 / C แล้วเอาค่ามากสุด
  *   แท็บ 6 สถาปัตยกรรม         -> Mermaid จากเครื่องมือที่เลือก
- *   แท็บ 7 Pipeline YAML       -> สคริปต์ต่อสภาพแวดล้อม
+ *   แท็บ 7 Pipeline + .sh ติดตั้ง -> YAML ต่อสภาพแวดล้อม และสคริปต์ต่อเครื่อง
  * ========================================================================== */
 'use strict';
 import { Planner, round } from './engine.js';
 import {
   buildPipelineIR, emitGitlab, emitGithub, emitAzure, emitJenkins,
-  mermaidFlow, mermaidVms, mermaidEnvs, svgPipeline,
+  mermaidFlow, mermaidVms, mermaidEnvs, svgPipeline, buildInstallPack,
 } from './pipeline.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -52,8 +52,10 @@ function defaultState() {
     project: { name: '', org: '', env: 'UAT / SIT', note: '' },
     profile: 'gov', impact: 'high', mode: 'realistic',
     pipelineOff: [], pipelineFlavor: '', pipelineView: 'flow',
+    pipeKind: 'yaml', pipeFile: '',
     horizon: 36, retention: 90,
     frameworks: [],
+    fit: 'all',
     licenseBlock: ['strong-copyleft', 'network-copyleft'],
     env: { airgap: false, nogpu: false, ha: false, sso: false, waf: false, monitor: false, backup: false },
     workload: { builds: 10, apps: 2, team: 10 },
@@ -150,8 +152,10 @@ async function boot() {
   if (!Array.isArray(ST.pipelineOff)) ST.pipelineOff = [];
   if (!ST.pipelineFlavor) ST.pipelineFlavor = '';
   if (!ST.pipelineView) ST.pipelineView = 'flow';
+  if (!ST.pipeKind) ST.pipeKind = 'yaml';
+  if (!ST.fit) ST.fit = 'all';
   D = derive();
-  if (!ST.tools || !ST.tools.length) autoTools(true);
+  /* ไม่ติ๊กเครื่องมือให้อัตโนมัติตอนเปิดหน้า — ผู้ใช้กดปุ่มเอง */
 
   buildStaticUI();
   buildCatalogPanel();
@@ -203,7 +207,7 @@ function buildStaticUI() {
     ST.impact = prof.impact;
     ST.retention = prof.log_retention_days;
     ST.frameworks = P.resolveFrameworks(v, null);
-    D = derive(); autoTools(true); render();
+    D = derive(); render();
   });
 
   togRow($('#impactRow'), [
@@ -219,16 +223,16 @@ function buildStaticUI() {
   $$('#fwPresets button').forEach(b => {
     b.onclick = () => {
       ST.frameworks = [...CAT.framework_presets[b.dataset.p]];
-      D = derive(); autoTools(true); render();
+      D = derive(); render();
     };
   });
   $('#fwAll').onclick = () => {
-    ST.frameworks = CAT.frameworks.map(f => f.id); D = derive(); autoTools(true); render();
+    ST.frameworks = CAT.frameworks.map(f => f.id); D = derive(); render();
   };
   $('#fwNone').onclick = () => { ST.frameworks = []; render(); };
   $('#fwRestore').onclick = () => {
     ST.frameworks = P.resolveFrameworks(ST.profile, null);
-    D = derive(); autoTools(true); render();
+    D = derive(); render();
   };
 
   togRow($('#licRow'), Object.entries(CAT.license_classes)
@@ -238,10 +242,10 @@ function buildStaticUI() {
       ST.licenseBlock = on ? [...new Set([...ST.licenseBlock, v])]
         : ST.licenseBlock.filter(x => x !== v);
       D = derive();
-      /* ตัดเครื่องมือที่ผิดนโยบายออก แล้วเติมตัวแทนให้อัตโนมัติ เพื่อไม่ให้ compliance ตกลงเฉย ๆ */
-      ST.tools = ST.tools.filter(id => !D.licBlock.includes(P.toolById.get(id).license_class));
-      const top = P.requiredTools(D.fws, ST.profile, ST.impact, D.licBlock, ST.tools, D.extCaps);
-      ST.tools = top.tools.filter(id => !(ST.env.nogpu && P.toolById.get(id).gpu));
+      ST.tools = ST.tools.filter(id => {
+        const t = P.toolById.get(id);
+        return t && !D.licBlock.includes(t.license_class);
+      });
       syncToolsToVms(); render();
     });
 
@@ -258,6 +262,15 @@ function buildStaticUI() {
     if (v === 'nogpu' && on) ST.tools = ST.tools.filter(t => !P.toolById.get(t).gpu);
     syncToolsToVms(); render();
   });
+
+  const fitOpts = [
+    { value: 'all', label: 'ทั้งหมด', sub: 'ไม่กรองรายการ' },
+    { value: 'cloud', label: 'Cloud', sub: 'บริการจัดการบนคลาวด์' },
+    { value: 'hybrid', label: 'Hybrid', sub: 'คลาวด์ + ติดตั้งเอง' },
+    { value: 'private', label: 'Private / On-prem', sub: 'ศูนย์ข้อมูลปิด' },
+    { value: 'local', label: 'Local / Dev', sub: 'เครื่องพัฒนาและ CI ในเครื่อง' },
+  ];
+  togRow($('#fitRow'), fitOpts, 'radio', v => ST.fit === v, v => { ST.fit = v; render(); });
 
   [['builds', '#wlBuilds'], ['apps', '#wlApps'], ['team', '#wlTeam']].forEach(([k, sel]) => {
     const el = $(sel);
@@ -389,6 +402,14 @@ function currentIR() {
   });
 }
 
+function currentPack() {
+  return buildInstallPack(currentIR(), CAT.tools);
+}
+
+function fitArg() {
+  return (!ST.fit || ST.fit === 'all') ? null : ST.fit;
+}
+
 function yamlFor(ir, flavor) {
   if (flavor === 'github') return emitGithub(ir);
   if (flavor === 'azure') return emitAzure(ir);
@@ -401,6 +422,127 @@ function yamlFileName(flavor) {
   if (flavor === 'azure') return 'azure-pipelines.yml';
   if (flavor === 'jenkins') return 'Jenkinsfile';
   return '.gitlab-ci.yml';
+}
+
+function selectedFrameworksFor(t) {
+  const cm = t.compliance || { frameworks_th: [], frameworks_intl: [] };
+  return [...cm.frameworks_th, ...cm.frameworks_intl].filter(f => ST.frameworks.includes(f));
+}
+
+function fwChipLabel(id) {
+  const f = P.frameworkById.get(id);
+  const s = (f && (f.short_th || f.id)) || id;
+  return s.length <= 18 ? s : id.replace(/-20\d{2}$/, '').replace(/-256\d$/, '');
+}
+
+function ensureTip() {
+  let el = $('#fwTip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'fwTip';
+    el.className = 'tooltip';
+    el.setAttribute('role', 'tooltip');
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showFwTip(anchor, t) {
+  const el = ensureTip();
+  const fws = selectedFrameworksFor(t);
+  const extra = (t.compliance && t.compliance.framework_count)
+    ? ' จากทั้งหมด ' + t.compliance.framework_count + ' ฉบับที่เครื่องมือนี้ตอบได้'
+    : '';
+  const list = fws.length
+    ? '<ul style="margin:6px 0 0;padding-left:18px">' + fws.map(id => {
+        const f = P.frameworkById.get(id);
+        return '<li>' + esc((f && f.short_th) || id) + '</li>';
+      }).join('') + '</ul>'
+    : '<div class="hint" style="margin-top:6px">ไม่ผูกกับมาตรฐานที่เลือกอยู่ในตอนนี้</div>';
+  el.innerHTML = '<b>' + esc(t.name.split(' (')[0]) + '</b><div class="hint">ตอบ ' +
+    fws.length + ' มาตรฐานที่เลือก' + extra + '</div>' + list;
+  const r = anchor.getBoundingClientRect();
+  el.style.left = Math.min(window.innerWidth - 336, Math.max(8, r.left)) + 'px';
+  el.style.top = Math.min(window.innerHeight - 12, r.bottom + 8) + 'px';
+  el.classList.add('show');
+}
+
+function hideFwTip() {
+  const el = $('#fwTip');
+  if (el) el.classList.remove('show');
+}
+
+function toast(msg) {
+  let el = $('#toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function addToolToVm(tid, vmIndex, fromDrag) {
+  const t = P.toolById.get(tid);
+  if (!t) return;
+  if (!ST.tools.includes(tid)) ST.tools = [...ST.tools, tid];
+  if (!ST.vms.length) autoLayout();
+  const i = Math.max(0, Math.min(ST.vms.length - 1, vmIndex));
+  ST.vms.forEach((v, j) => { if (j !== i) v.tools = v.tools.filter(x => x !== tid); });
+  if (!ST.vms[i].tools.includes(tid)) ST.vms[i].tools.push(tid);
+  const n = selectedFrameworksFor(t).length;
+  if (fromDrag) toast('เพิ่ม ' + t.name.split(' (')[0] + ' — ตอบ ' + n + ' จากมาตรฐานที่เลือก');
+  render();
+}
+
+function crc32(bytes) {
+  let c = ~0 >>> 0;
+  for (let i = 0; i < bytes.length; i++) {
+    c ^= bytes[i];
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return (~c) >>> 0;
+}
+
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const u16 = n => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, n, true); return b; };
+  const u32 = n => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b; };
+  const chunks = [], central = [];
+  let offset = 0;
+  const concat = parts => {
+    const n = parts.reduce((s, p) => s + p.length, 0);
+    const o = new Uint8Array(n); let p = 0;
+    parts.forEach(x => { o.set(x, p); p += x.length; });
+    return o;
+  };
+  files.forEach(f => {
+    const name = enc.encode(f.name.replace(/\\/g, '/'));
+    const data = enc.encode(f.content);
+    const crc = crc32(data);
+    const local = concat([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0),
+      name, data,
+    ]);
+    chunks.push(local);
+    central.push(concat([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0),
+      u16(0), u16(0), u16(0), u32(0), u32(offset), name,
+    ]));
+    offset += local.length;
+  });
+  const cen = concat(central);
+  const end = concat([
+    u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(cen.length), u32(offset), u16(0),
+  ]);
+  return concat([...chunks, cen, end]);
 }
 
 function wirePipelineUi() {
@@ -428,9 +570,20 @@ function wirePipelineUi() {
   if (btnY) btnY.onclick = () => copy('#pipeYaml');
   const btnDy = $('#btnDlYaml');
   if (btnDy) btnDy.onclick = () => {
+    const y = $('#pipeYaml');
+    const name = ST._pipeName || yamlFileName(ST.pipelineFlavor || 'gitlab');
+    download(fileStem() + '-' + name.replace(/\//g, '_'), (y && y.value) || '', 'text/plain');
+  };
+  const btnPack = $('#btnDlPack');
+  if (btnPack) btnPack.onclick = () => {
     const ir = currentIR();
     const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
-    download(fileStem() + '-' + yamlFileName(flavor), yamlFor(ir, flavor), 'text/yaml');
+    const pack = currentPack();
+    const files = [
+      { name: yamlFileName(flavor), content: yamlFor(ir, flavor) },
+    ];
+    Object.keys(pack).sort().forEach(k => files.push({ name: k, content: pack[k] }));
+    download(fileStem() + '-cicd-pack.zip', zipStore(files), 'application/zip');
   };
 }
 
@@ -474,17 +627,37 @@ function renderPipeline() {
   if (!host) return;
   const ir = currentIR();
   const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
+  const pack = currentPack();
+  const installNames = Object.keys(pack).sort();
+  togRow($('#pipeKindRow'), [
+    { value: 'yaml', label: 'Pipeline YAML', sub: yamlFileName(flavor) },
+    { value: 'install', label: 'สคริปต์ติดตั้ง (.sh)', sub: installNames.length + ' ไฟล์' },
+  ], 'radio', v => ST.pipeKind === v, v => { ST.pipeKind = v; render(); });
   togRow($('#pipeFlavorRow'), [
     { value: 'gitlab', label: 'GitLab CI', sub: '.gitlab-ci.yml' },
     { value: 'github', label: 'GitHub Actions', sub: '.github/workflows/cicd.yml' },
     { value: 'azure', label: 'Azure Pipelines', sub: 'azure-pipelines.yml' },
     { value: 'jenkins', label: 'Jenkins', sub: 'Jenkinsfile' },
   ], 'radio', v => flavor === v, v => { ST.pipelineFlavor = v; render(); });
+  const fileHost = $('#pipeFileRow');
+  if (fileHost) {
+    if (ST.pipeKind === 'install') {
+      if (!ST.pipeFile || !pack[ST.pipeFile]) ST.pipeFile = installNames[0] || '';
+      togRow(fileHost, installNames.map(n => ({
+        value: n, label: n.replace(/^install\//, ''), sub: n,
+      })), 'radio', v => ST.pipeFile === v, v => { ST.pipeFile = v; render(); });
+    } else {
+      fileHost.innerHTML = '';
+    }
+  }
   const meta = $('#pipeMeta');
+  const yname = ST.pipeKind === 'install' ? (ST.pipeFile || 'install/all.sh') : yamlFileName(flavor);
+  ST._pipeName = yname;
   if (meta) {
     meta.innerHTML = 'ตรวจพบ orchestrator = <b>' + esc(ir.orchestrator) +
       '</b> · งานที่เปิด ' + ir.jobs.filter(j => j.enabled).length + '/' + ir.jobs.length +
-      ' · ไฟล์ ' + esc(yamlFileName(flavor));
+      ' · ไฟล์ <b>' + esc(yname) + '</b>' +
+      (ir.vms.length ? ' · ติดตั้ง ' + ir.vms.length + ' เครื่อง' : ' · ยังไม่มี VM');
   }
   host.innerHTML = ir.stages.map(st => {
     const list = ir.jobs.filter(j => j.stage === st.id);
@@ -493,7 +666,7 @@ function renderPipeline() {
       st.n + '</span>' + esc(st.label) + '</div><div class="togrow">' +
       list.map(j => '<button type="button" class="tog" role="checkbox" aria-pressed="' +
         j.enabled + '" data-job="' + esc(j.id) + '"><span class="box"></span><span>' +
-        esc(j.name) + '<span class="sub">' + esc(j.tool_id || 'deploy') +
+        esc(j.name) + '<span class="sub">' + esc(j.tool_id || 'bootstrap') +
         (j.env ? ' · ' + j.env : '') +
         (j.gates.length ? ' · ' + j.gates.join(' ') : '') +
         '</span></span></button>').join('') + '</div></div>';
@@ -507,7 +680,11 @@ function renderPipeline() {
     };
   });
   const y = $('#pipeYaml');
-  if (y) y.value = yamlFor(ir, flavor);
+  if (y) {
+    y.value = ST.pipeKind === 'install'
+      ? (pack[ST.pipeFile] || pack['install/all.sh'] || '')
+      : yamlFor(ir, flavor);
+  }
 }
 
 /* ========================================================================== */
@@ -517,11 +694,12 @@ function toolPool() {
   return CAT.tools.filter(t =>
     t.profiles.includes(ST.profile) &&
     !D.licBlock.includes(t.license_class || 'permissive') &&
-    !(ST.env.nogpu && t.gpu));
+    !(ST.env.nogpu && t.gpu) &&
+    P.toolFits(t, fitArg()));
 }
 
 function autoTools(relayout) {
-  const r = P.requiredTools(D.fws, ST.profile, ST.impact, D.licBlock, [], D.extCaps);
+  const r = P.requiredTools(D.fws, ST.profile, ST.impact, D.licBlock, [], D.extCaps, fitArg());
   ST.tools = r.tools.filter(id => !(ST.env.nogpu && P.toolById.get(id).gpu));
   if (relayout || !ST.vms.length) autoLayout(); else syncToolsToVms();
 }
@@ -679,6 +857,7 @@ function syncControlValues() {
   refreshTog('#impactRow', v => ST.impact === v);
   refreshTog('#licRow', v => ST.licenseBlock.includes(v));
   refreshTog('#envRow', v => !!ST.env[v]);
+  refreshTog('#fitRow', v => ST.fit === v);
   refreshTog('#scaleModeRow', v => (ST.scaleAuto ? 'auto' : 'manual') === v);
   refreshTog('#modeRow', v => ST.mode === v);
   refreshTog('#horizonRow', v => String(ST.horizon) === v);
@@ -805,6 +984,23 @@ function renderTools() {
     (comp ? '<span>คะแนน Compliance <b>' + comp.score + '%</b> · ไม่ผ่าน ' +
       comp.failed_count + ' มาตรการ</span>' : '') + '</div>';
 
+  const hint = $('#toolHint');
+  if (hint) {
+    const rec = P.requiredTools(D.fws, ST.profile, ST.impact, D.licBlock, ST.tools, D.extCaps, fitArg());
+    const n = rec.added.length;
+    if (!ST.tools.length && n) {
+      hint.innerHTML = '<div class="hintbar">ยังไม่ได้เลือกเครื่องมือ — แนะนำ <b>' + n +
+        '</b> รายการจากมาตรฐานที่เลือก (กดปุ่มเลือกอัตโนมัติเมื่อพร้อม)</div>';
+    } else if (n) {
+      hint.innerHTML = '<div class="hintbar">แนะนำเพิ่มอีก <b>' + n +
+        '</b> รายการเพื่อปิดช่องว่าง — กด «เพิ่มเฉพาะตัวที่ยังขาด» หรือเลือกอัตโนมัติใหม่</div>';
+    } else if (!ST.tools.length) {
+      hint.innerHTML = '<div class="hintbar">เลือกมาตรฐานก่อน แล้วค่อยติ๊กเครื่องมือหรือกดเลือกอัตโนมัติ</div>';
+    } else {
+      hint.innerHTML = '';
+    }
+  }
+
   const q = ($('#qToolPlan').value || '').trim().toLowerCase();
   const missing = new Set(comp ? Object.keys(comp.gaps) : []);
   const shown = toolPool().filter(t => {
@@ -828,11 +1024,44 @@ function renderTools() {
     '<div class="note">ไม่มีเครื่องมือที่ตรงเงื่อนไข — ลองเปลี่ยนตัวกรองหรือนโยบายลิขสิทธิ์</div>';
 
   $$('#toolPicker .tog').forEach(b => {
+    let dragged = false;
     b.onclick = () => {
+      if (dragged) { dragged = false; return; }
       const id = b.dataset.v;
       ST.tools = ST.tools.includes(id) ? ST.tools.filter(x => x !== id) : [...ST.tools, id];
       syncToolsToVms(); render();
     };
+    b.ondragstart = (e) => {
+      dragged = true;
+      e.dataTransfer.setData('text/plain', b.dataset.v);
+      e.dataTransfer.effectAllowed = 'copy';
+      const t = P.toolById.get(b.dataset.v);
+      if (t) {
+        const ghost = document.createElement('div');
+        ghost.className = 'drag-ghost';
+        ghost.id = 'dragGhost';
+        const fws = selectedFrameworksFor(t).slice(0, 6);
+        ghost.innerHTML = '<b>' + esc(t.name.split(' (')[0]) + '</b><div class="fwchips">' +
+          fws.map(id => '<span class="fwchip">' + esc(fwChipLabel(id)) + '</span>').join('') +
+          '</div>';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 16, 16);
+      }
+    };
+    b.ondragend = () => {
+      const g = $('#dragGhost');
+      if (g) g.remove();
+      hideFwTip();
+    };
+    let tipTimer = 0;
+    b.onmouseenter = () => {
+      const t = P.toolById.get(b.dataset.v);
+      if (!t) return;
+      tipTimer = setTimeout(() => showFwTip(b, t), 280);
+    };
+    b.onmouseleave = () => { clearTimeout(tipTimer); hideFwTip(); };
+    b.onfocus = () => { const t = P.toolById.get(b.dataset.v); if (t) showFwTip(b, t); };
+    b.onblur = hideFwTip;
   });
 }
 
@@ -840,19 +1069,24 @@ function toolTog(t, missing) {
   const on = ST.tools.includes(t.id);
   const closes = t.capabilities.filter(c => missing.has(c));
   const need = !on && closes.length > 0;
-  const cm = t.compliance || { frameworks_th: [], frameworks_intl: [] };
-  const nFw = cm.frameworks_th.filter(f => ST.frameworks.includes(f)).length +
-              cm.frameworks_intl.filter(f => ST.frameworks.includes(f)).length;
+  const fws = selectedFrameworksFor(t);
+  const nFw = fws.length;
+  const shown = fws.slice(0, 5);
+  const extra = nFw > shown.length ? '<span class="fwchip">+' + (nFw - shown.length) + '</span>' : '';
+  const chips = nFw
+    ? '<span class="fwchips">' + shown.map(id => '<span class="fwchip">' + esc(fwChipLabel(id)) +
+      '</span>').join('') + extra + '</span>'
+    : '';
   const sub = t.min.vcpu + 'c / ' + t.min.ram_gb + 'G · ' + t.conc_group +
     ' · w=' + Math.round(P.dutyWeight(t.freq) * 100) + '% · ' + t.license;
   const fwText = nFw ? 'ตอบ ' + nFw + ' มาตรฐานที่เลือก' : 'ไม่ผูกกับมาตรฐานที่เลือก';
   return '<button type="button" class="tog' + (need ? ' req' : '') + '" role="checkbox" ' +
-    'aria-pressed="' + on + '" data-v="' + esc(t.id) + '" title="' +
-    esc(t.name + ' — ' + t.sizing_ref) + '"><span class="box"></span><span>' +
+    'draggable="true" aria-pressed="' + on + '" data-v="' + esc(t.id) + '" title="' +
+    esc(t.name + ' — ลากไปวางบนการ์ด VM ได้') + '"><span class="box"></span><span>' +
     esc(t.name.split(' (')[0]) + (need ? ' <span class="flag">จำเป็น</span>' : '') +
     '<span class="sub">' + esc(sub) + '</span><span class="sub">' + esc(fwText) +
     (closes.length ? ' · ปิดช่องว่าง: ' + esc(closes.join(', ')) : '') +
-    '</span></span></button>';
+    '</span>' + chips + '</span></button>';
 }
 
 /* --------------------------------------------- fleet ---------------------- */
@@ -987,6 +1221,14 @@ function renderVms() {
         disk_os_gb: v.calc.allocated.disk_os_gb, disk_data_gb: v.calc.allocated.disk_data_gb };
       render();
     };
+    card.ondragover = (e) => { e.preventDefault(); card.classList.add('drop-ready'); };
+    card.ondragleave = () => card.classList.remove('drop-ready');
+    card.ondrop = (e) => {
+      e.preventDefault();
+      card.classList.remove('drop-ready');
+      const id = e.dataTransfer.getData('text/plain');
+      if (id) addToolToVm(id, i, true);
+    };
   });
 }
 
@@ -1010,13 +1252,14 @@ function vmCard(v, i) {
     '<td class="num" style="color:' + (g < 0 ? 'var(--critical)' : 'var(--good)') +
     ';font-weight:700">' + (g > 0 ? '+' : '') + fmt(g) + ' ' + esc(unit) + '</td>';
 
-  return '<div class="vmcard ' + vd.cls + '" id="vm-' + i + '"><header>' +
+  return '<div class="vmcard ' + vd.cls + '" id="vm-' + i + '" data-vm="' + i + '"><header>' +
     '<input class="vmname" type="text" value="' + esc(v.name) + '">' +
     '<span class="badge ' + (vd.cls === 'ok' ? 'ok' : vd.cls === 'bad' ? 'bad' : 'warn') + '">' +
     vd.icon + ' ' + esc(vd.th) + '</span>' +
     '<button class="btn small ghost vmdel noprint" title="ลบเครื่องนี้">✕</button></header>' +
     '<input class="vmrole" type="text" value="' + esc(v.role || '') +
     '" placeholder="บทบาทหน้าที่ของเครื่องนี้" style="margin-bottom:8px;font-size:12px">' +
+    '<div class="hint noprint" style="margin-bottom:8px">ลากเครื่องมือจากขั้นที่ 4 มาวางที่การ์ดนี้ได้</div>' +
     '<div class="grid3" style="gap:8px">' +
       '<div class="tile"><div class="k">ต้องจัดสรร vCPU</div><div class="v">' +
         fmt(c.allocated.vcpu) + '</div><div class="s">ดิบ ' + fmt(c.raw.vcpu, 2) + ' + OS ' +

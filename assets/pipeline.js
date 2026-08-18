@@ -5,7 +5,7 @@
  * ========================================================================== */
 'use strict';
 
-const PIPE_SCHEMA = '1.2.0';
+const PIPE_SCHEMA = '1.3.0';
 
 const PIPE_STAGES = [
   { id: 'source', n: 1, label: 'Source Code' },
@@ -35,8 +35,16 @@ const JOB_SPECS = [
     'License compliance', ['scancode --license --json-pp license-report.json .']],
   ['compile', 'build', ['maven-gradle'], ['lint'], 'commit', null, [],
     'Compile / package', ['echo compile with project build tool']],
-  ['image', 'build', ['docker-buildkit'], ['compile'], 'build', null, [],
-    'Container image (rootless BuildKit)', ['buildctl build --frontend dockerfile.v0 --local context=.']],
+  ['image', 'build', ['docker-buildkit', 'podman-buildah'], ['compile'], 'build', null, [],
+    'Container image (rootless BuildKit / Buildah)', ['buildctl build --frontend dockerfile.v0 --local context=.']],
+  ['helm-lint', 'check', ['helm'], [], 'commit', null, ['G-02'],
+    'Helm lint / template', ['helm lint ./chart', 'helm template "${APP_NAME:-app}" ./chart >/tmp/helm-rendered.yaml']],
+  ['kustomize-build', 'build', ['kustomize'], ['image'], 'build', null, [],
+    'Kustomize build', ['kustomize build overlays/dev']],
+  ['kyverno-test', 'check', ['kyverno'], [], 'pr', null, ['G-12'],
+    'Kyverno policy test', ['kyverno test ./policies']],
+  ['dtrack-upload', 'store', ['dependency-track'], ['sbom'], 'build', null, ['G-01', 'G-10'],
+    'Upload SBOM to Dependency-Track', ['dtrack-cli upload --bom sbom.json --project "${DTRACK_PROJECT:-app}"']],
   ['iac', 'build', ['checkov'], [], 'build', null, ['G-02'],
     'IaC scan (Checkov)', ['checkov -d . --quiet --compact']],
   ['sbom', 'build', ['syft'], ['image', 'compile'], 'build', null, ['G-10'],
@@ -72,20 +80,74 @@ const ORCH_TOOLS = [
   ['jenkins-master', 'jenkins'],
   ['jenkins-agent', 'jenkins'],
   ['azure-devops', 'azure'],
+  ['woodpecker', 'generic'],
+  ['tekton', 'generic'],
 ];
 
 const DEPLOY_TOOLS = [
-  'argocd', 'k3s-control',
+  'argocd', 'flux-cd', 'helm', 'kustomize',
+  'k3s-control', 'kubernetes-kubeadm', 'microk8s', 'kind-k3d',
   'azure-kubernetes-service', 'aws-eks', 'gcp-gke',
 ];
 
 const DEPLOY_NAMES = {
   'argocd': 'GitOps deploy (Argo CD)',
+  'flux-cd': 'GitOps deploy (Flux)',
+  'helm': 'Helm upgrade',
+  'kustomize': 'Kustomize apply',
   'k3s-control': 'Deploy to K3s',
+  'kubernetes-kubeadm': 'Deploy to kubeadm',
+  'microk8s': 'Deploy to MicroK8s',
+  'kind-k3d': 'Deploy to kind/k3d',
   'azure-kubernetes-service': 'Deploy to AKS',
   'aws-eks': 'Deploy to EKS',
   'gcp-gke': 'Deploy to GKE',
 };
+
+function deployScript(tid, env) {
+  const overlay = 'overlays/' + env;
+  if (tid === 'argocd') {
+    return ['argocd app sync "${APP_NAME:-app}-' + env + '" --prune --timeout 300'];
+  }
+  if (tid === 'flux-cd') {
+    return ['flux reconcile kustomization "${APP_NAME:-app}-' + env + '" --with-source'];
+  }
+  if (tid === 'helm') {
+    return ['helm upgrade --install "${APP_NAME:-app}" ./chart --namespace apps-' + env +
+      ' --create-namespace --atomic --wait --timeout 10m -f ' + overlay + '/values.yaml'];
+  }
+  if (tid === 'kustomize') {
+    return ['kubectl apply -k ' + overlay];
+  }
+  if (tid === 'k3s-control') {
+    return ['export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"',
+      'kubectl apply -k ' + overlay];
+  }
+  if (tid === 'kubernetes-kubeadm') {
+    return ['export KUBECONFIG="${KUBECONFIG:-/etc/kubernetes/admin.conf}"',
+      'kubectl apply -k ' + overlay];
+  }
+  if (tid === 'microk8s') {
+    return ['microk8s kubectl apply -k ' + overlay];
+  }
+  if (tid === 'kind-k3d') {
+    return ['export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"',
+      'kubectl apply -k ' + overlay];
+  }
+  if (tid === 'azure-kubernetes-service') {
+    return ['az aks get-credentials --resource-group "${AZ_RG}" --name "${AKS_NAME}" --overwrite-existing',
+      'kubectl apply -k ' + overlay];
+  }
+  if (tid === 'aws-eks') {
+    return ['aws eks update-kubeconfig --name "${EKS_NAME}" --region "${AWS_REGION}"',
+      'kubectl apply -k ' + overlay];
+  }
+  if (tid === 'gcp-gke') {
+    return ['gcloud container clusters get-credentials "${GKE_NAME}" --region "${GCP_REGION}"',
+      'kubectl apply -k ' + overlay];
+  }
+  return ['kubectl apply -k ' + overlay];
+}
 
 function pickTool(toolSet, prefs) {
   for (const tid of prefs) if (toolSet.has(tid)) return tid;
@@ -138,32 +200,47 @@ export function buildPipelineIR(toolIds, opts = {}) {
   if (envs.includes('dr')) {
     deployJobs.push(['deploy-dr', 'dr', 'manual', ['deploy-prod'], ['G-11'], 'Deploy DR']);
   }
+  if (vms.length) {
+    jobs.push({
+      id: 'bootstrap', stage: 'source', tool_id: null,
+      name: 'Install tools on hosts (once)',
+      needs: [], when: 'manual', env: null, gates: [],
+      script: ['sh install/all.sh'], enabled: !off.has('bootstrap'),
+    });
+  }
   for (const [jid, env, when, needs, gates, title] of deployJobs) {
     jobs.push({
       id: jid, stage: 'deploy', tool_id: deployTool, name: title,
       needs: [...needs], when, env, gates: [...gates],
-      script: ['echo ' + title], enabled: !off.has(jid),
+      script: deployScript(deployTool, env), enabled: !off.has(jid),
     });
   }
   if (tset.has('modsecurity')) {
     jobs.push({
       id: 'waf-review', stage: 'deploy', tool_id: 'modsecurity',
       name: 'WAF rule review', needs: ['deploy-uat'], when: 'monthly', env: 'prod',
-      gates: [], script: ['echo review WAF rules'], enabled: !off.has('waf-review'),
+      gates: [], script: ['nginx -t && echo review WAF rules in /etc/nginx/modsec'], enabled: !off.has('waf-review'),
     });
   }
   if (tset.has('falco')) {
     jobs.push({
       id: 'runtime', stage: 'deploy', tool_id: 'falco',
       name: 'Runtime security (Falco)', needs: ['deploy-prod'], when: 'resident', env: 'prod',
-      gates: [], script: ['echo falco is resident on nodes'], enabled: !off.has('runtime'),
+      gates: [], script: ['falco-driver-loader && falco --pidfile /run/falco.pid'], enabled: !off.has('runtime'),
     });
   }
   if (tset.has('velero-restic')) {
     jobs.push({
       id: 'backup', stage: 'deploy', tool_id: 'velero-restic',
       name: 'Backup / restore drill', needs: ['deploy-prod'], when: 'nightly', env: 'prod',
-      gates: [], script: ['echo velero backup create nightly'], enabled: !off.has('backup'),
+      gates: [], script: ['velero backup create nightly --wait'], enabled: !off.has('backup'),
+    });
+  }
+  if (tset.has('kyverno')) {
+    jobs.push({
+      id: 'kyverno-apply', stage: 'deploy', tool_id: 'kyverno',
+      name: 'Apply cluster policies (Kyverno)', needs: ['deploy-uat'], when: 'release', env: 'uat',
+      gates: ['G-12'], script: ['kubectl apply -f policies/'], enabled: !off.has('kyverno-apply'),
     });
   }
 
@@ -415,4 +492,121 @@ function escXml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export { PIPE_SCHEMA, PIPE_STAGES, DEPLOY_NAMES };
+function sanitizeVm(name) {
+  const s = String(name || 'VM').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return s || 'VM';
+}
+
+function commonInstallSh() {
+  return [
+    '#!/usr/bin/env sh',
+    'set -eu',
+    '# Generated by CI/CD Resource Planner ' + PIPE_SCHEMA,
+    '# Offline: place binaries in $MIRROR (default ./vendor)',
+    '# Then run: MIRROR=/path/to/vendor sh install/all.sh',
+    'MIRROR="${MIRROR:-./vendor}"',
+    'log() { printf \'%s\\n\' "$*"; }',
+    'need_cmd() { command -v "$1" >/dev/null 2>&1; }',
+    'pkg_install() {',
+    '  if [ "$#" -eq 0 ]; then return 0; fi',
+    '  if need_cmd apt-get; then',
+    '    apt-get update -y',
+    '    apt-get install -y "$@"',
+    '  elif need_cmd dnf; then',
+    '    dnf install -y "$@"',
+    '  elif need_cmd yum; then',
+    '    yum install -y "$@"',
+    '  else',
+    '    log "ไม่พบ apt/dnf/yum — ติดตั้งด้วยมือ: $*"',
+    '    return 1',
+    '  fi',
+    '}',
+    'install_from_mirror() {',
+    '  name="$1"',
+    '  file="${2:-$1}"',
+    '  bin="$MIRROR/$file"',
+    '  dest="/usr/local/bin/$name"',
+    '  if need_cmd "$name"; then',
+    '    log "มี $name อยู่แล้ว"',
+    '    return 0',
+    '  fi',
+    '  if [ -f "$bin" ]; then',
+    '    install -m 0755 "$bin" "$dest"',
+    '    log "ติดตั้ง $name จาก $bin"',
+    '    return 0',
+    '  fi',
+    '  log "ไม่พบ $bin — วางไฟล์ใน \\$MIRROR หรือตั้ง MIRROR เป็นเส้นทาง vendor"',
+    '  return 1',
+    '}',
+    '',
+  ].join('\n');
+}
+
+function toolByIdMap(tools) {
+  const m = new Map();
+  (tools || []).forEach(t => m.set(t.id, t));
+  return m;
+}
+
+export function buildInstallPack(ir, tools) {
+  const byId = toolByIdMap(tools);
+  const files = {};
+  files['install/00-common.sh'] = commonInstallSh();
+  const vmFiles = [];
+  const vms = ir.vms || [];
+  vms.forEach((vm, i) => {
+    const name = sanitizeVm(vm.name || ('VM-' + (i + 1)));
+    const fname = 'install/' + name + '.sh';
+    vmFiles.push(fname);
+    const ids = [...(vm.tools || [])];
+    const pkgs = [];
+    const body = [];
+    ids.forEach(tid => {
+      const t = byId.get(tid);
+      if (!t) {
+        body.push('log "ข้าม ' + tid + ' — ไม่พบใน catalog"');
+        return;
+      }
+      const inst = t.install || { family: 'binary', packages: [], lines: [] };
+      body.push('');
+      body.push('log "--- ' + (t.name || tid) + ' ---"');
+      if (inst.family === 'managed' || t.managed) {
+        body.push('log "managed service — ไม่ติดตั้งบน VM นี้ (' + tid + ')"');
+        return;
+      }
+      (inst.packages || []).forEach(p => { if (!pkgs.includes(p)) pkgs.push(p); });
+      (inst.lines || []).forEach(line => body.push(line));
+    });
+    const lines = [
+      '#!/usr/bin/env sh',
+      'set -eu',
+      '# VM: ' + (vm.name || name),
+      '# Role: ' + (vm.role || ''),
+      'HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+      '# shellcheck disable=SC1091',
+      '. "$HERE/00-common.sh"',
+      'log "ติดตั้งเครื่องมือบน ' + (vm.name || name) + '"',
+    ];
+    if (pkgs.length) lines.push('pkg_install ' + pkgs.join(' '));
+    files[fname] = lines.concat(body).concat(['log "เสร็จบน ' + (vm.name || name) + '"', '']).join('\n');
+  });
+  const all = [
+    '#!/usr/bin/env sh',
+    'set -eu',
+    'HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+    '# shellcheck disable=SC1091',
+    '. "$HERE/00-common.sh"',
+    'log "ติดตั้งทุกเครื่องตามผัง VM"',
+  ];
+  vmFiles.forEach(f => {
+    all.push('sh "$HERE/' + f.slice('install/'.length) + '"');
+  });
+  if (!vmFiles.length) all.push('log "ยังไม่มี VM ในแผน — จัดเครื่องมือลงเครื่องก่อน"');
+  all.push('log "ติดตั้งครบทุกเครื่องแล้ว"');
+  all.push('');
+  files['install/all.sh'] = all.join('\n');
+  return files;
+}
+
+export { PIPE_SCHEMA, PIPE_STAGES, DEPLOY_NAMES, deployScript, sanitizeVm };
+

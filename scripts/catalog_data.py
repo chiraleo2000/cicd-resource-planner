@@ -14,7 +14,7 @@
 ค่า rec_* คือค่าที่แนะนำเมื่อรับงานจริงต่อเนื่อง (steady state)
 """
 
-SCHEMA_VERSION = "1.2.0"
+SCHEMA_VERSION = "1.3.0"
 GENERATED_FOR = "CI/CD Service Blueprint V0.2 — Generic Edition (ใช้ได้กับทุกประเภทโครงการ)"
 
 # ---------------------------------------------------------------------------
@@ -228,12 +228,22 @@ def classify_license(lic: str) -> str:
 # ---------------------------------------------------------------------------
 # 5) ตารางเครื่องมือ + Resource Requirements
 # ---------------------------------------------------------------------------
+FIT_LABELS = {
+    "all": "ทั้งหมด",
+    "cloud": "Cloud",
+    "hybrid": "Hybrid",
+    "private": "Private / On-prem",
+    "local": "Local / Dev",
+}
+
+
 def T(id, name, stage, cat, caps, grade, license, core, ent,
       min_vcpu, min_ram, min_disk_os,
       rec_vcpu, rec_ram, rec_disk_os,
       resident, idle_ram, freq,
       data_daily_gb, retention_days, index_overhead, growth_yr,
-      profiles, sizing_ref, note_th, oss_alt=None, gpu=False, managed=False):
+      profiles, sizing_ref, note_th, oss_alt=None, gpu=False, managed=False,
+      fit=None, install=None):
     """สร้าง record เครื่องมือ 1 ตัว
 
     min_*  = ค่าต่ำสุดที่รันได้จริง (peak ระหว่างทำงาน)
@@ -241,6 +251,7 @@ def T(id, name, stage, cat, caps, grade, license, core, ent,
     data_daily_gb = ปริมาณข้อมูลใหม่เฉลี่ยต่อวันในสภาวะใช้งานปกติ (GB/วัน)
     index_overhead = ส่วนเกินสำหรับ index/replica/metadata (สัดส่วน)
     growth_yr = อัตราการโตของปริมาณข้อมูลต่อปี (สัดส่วน)
+    fit = สภาพแวดล้อมที่ติดตั้งได้ (cloud / hybrid / private / local)
     """
     return dict(
         id=id, name=name, stage=stage, category=cat, capabilities=caps,
@@ -253,6 +264,8 @@ def T(id, name, stage, cat, caps, grade, license, core, ent,
                      growth_yr=growth_yr),
         profiles=profiles, sizing_ref=sizing_ref, note_th=note_th,
         managed=managed,
+        fit=list(fit or []),
+        install=dict(install or {}),
     )
 
 
@@ -307,6 +320,26 @@ T("argo-workflows", "Argo Workflows (CNCF Graduated)", 1, "Pipeline Orchestratio
   0.15, 90, 0.10, 0.20, ["gov","enterprise","aiml"],
   "Argo Workflows controller ทั่วไปตั้ง request 100m CPU / 128Mi และ limit ~500m / 1Gi; ต้องมี Kubernetes อยู่แล้ว",
   "เหมาะเมื่อมี Kubernetes แล้ว — เบากว่า Jenkins มาก แต่ต้องนับ resource ของ K8s control plane เพิ่ม"),
+
+T("tekton", "Tekton Pipelines (CI บน Kubernetes)", 1, "Pipeline Orchestration",
+  ["pipeline","webhook","quality_gate"], "oss", "Apache-2.0", "Optional",
+  ["Jenkins","GitLab CI","Argo Workflows","Azure DevOps"],
+  1, 2, 15, 2, 4, 40, True, 0.8, "resident",
+  0.10, 90, 0.10, 0.20, ["gov", "enterprise", "internal", "aiml"],
+  "Tekton controller + webhook ใช้ประมาณ 0.5-1 vCPU / 1-2 GB; งาน build ไปลง Task pod ตาม spec ของแต่ละ Pipeline",
+  "CI แบบ cloud-native รันบนคลัสเตอร์เดียวกันได้ทั้ง AKS/EKS/GKE และ K3s/kubeadm — ไม่ผูกกับ SaaS",
+  oss_alt=["Argo Workflows","Jenkins","Woodpecker CI"],
+  fit=["cloud", "hybrid", "private", "local"]),
+
+T("woodpecker", "Woodpecker CI (Lightweight CI คู่ Gitea/Forgejo)", 1, "Pipeline Orchestration",
+  ["pipeline","webhook","build"], "oss", "Apache-2.0", "Optional",
+  ["GitHub Actions","GitLab CI","Jenkins"],
+  1, 2, 10, 2, 4, 30, True, 0.5, "resident",
+  0.05, 90, 0.10, 0.15, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "Woodpecker server + agent กิน RAM ประมาณ 200-500 MB idle; ใช้ container runtime ของเครื่อง agent",
+  "ทางเลือก CI เบาเมื่อใช้ Gitea/Forgejo แทน GitLab — ติดตั้งได้ทั้ง private และ local",
+  oss_alt=["Jenkins","Forgejo Actions","Drone CI"],
+  fit=["private", "hybrid", "local"]),
 
 T("opa-conftest", "Open Policy Agent / Conftest (Policy-as-Code Gate)", 1, "Branch Protection",
   ["branch_protection","iac_scan","quality_gate"], "oss", "Apache-2.0", "Optional",
@@ -367,6 +400,16 @@ T("dependency-check", "OWASP Dependency-Check (SCA)", 2, "Software Composition A
   "ควรย้ายไปรันรอบ nightly เพราะช้า และตั้ง NVD_API_KEY + local mirror เพื่อรองรับ Air-gapped ตามภาครัฐ",
   oss_alt=["Trivy","Grype (Anchore)","Dependency-Track","OSV-Scanner"]),
 
+T("dependency-track", "OWASP Dependency-Track (SCA Dashboard)", 2, "Software Composition Analysis",
+  ["sca","sbom","audit_trail","quality_gate"], "oss", "Apache-2.0", "Optional",
+  ["Snyk Enterprise","Mend","JFrog Xray","Sonatype Lifecycle"],
+  2, 4, 40, 4, 8, 80, True, 2.0, "resident",
+  0.10, 730, 0.20, 0.20, ["gov", "enterprise", "internal", "aiml"],
+  "Dependency-Track เป็น Java + PostgreSQL; docs แนะนำ 4 GB heap สำหรับทีมเล็ก และเก็บ SBOM ระยะยาว",
+  "ใช้ติดตาม CVE ต่อเนื่องหลัง pipeline จบ ไม่ใช่แค่สแกนรอบเดียว — รับ CycloneDX จาก Syft/Trivy",
+  oss_alt=["Trivy Operator","Grype","OSV-Scanner"],
+  fit=["private", "hybrid", "local"]),
+
 T("trivy", "Trivy (SCA + Container + IaC + Secret ในตัวเดียว)", 2, "Multi-purpose Scanner",
   ["sca","container_scan","iac_scan","secret_scan","sbom"], "oss", "Apache-2.0", "Core",
   ["Aqua Container Security","Prisma Cloud (Twistlock)","Snyk Container","JFrog Xray"],
@@ -409,6 +452,16 @@ T("docker-buildkit", "Docker Engine / BuildKit (Container Image Builder)", 3, "C
   "Docker daemon idle ~200-400 MB; multi-stage build ของ Java/Node ใช้ 2-4 GB ตอน compile layer; image layer cache เป็นตัวกิน disk หลัก",
   "จุดเสี่ยงหลักคือ Disk ไม่ใช่ RAM — layer cache + dangling image โต 2-5 GB/วัน ต้องตั้ง `docker system prune` เป็น cron; ถ้าต้องการ Rootless Build ตามข้อกำหนดภาครัฐให้ใช้ Kaniko/Buildah แทน",
   oss_alt=["Kaniko","Buildah","Podman","Cloud Native Buildpacks","img","ko"]),
+
+T("podman-buildah", "Podman / Buildah / Kaniko (Rootless Image Build)", 3, "Container Image Builder",
+  ["image_build","build"], "oss", "Apache-2.0", "Optional",
+  ["Docker BuildKit","Google Cloud Build","AWS CodeBuild"],
+  2, 4, 80, 4, 8, 200, False, 0.0, "per_commit",
+  2.00, 21, 0.10, 0.20, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "Buildah/Kaniko ไม่ต้องใช้ Docker daemon; RAM ใกล้เคียง Docker ตอน build (2-4 GB) แต่ idle เป็น 0 เพราะเป็น CLI/job",
+  "เหมาะกับภาครัฐ/air-gap ที่ห้าม Docker daemon และอยาก build ใน Kubernetes job — ใช้ร่วมกับ Helm ได้ทุกสภาพแวดล้อม",
+  oss_alt=["Docker BuildKit","img","ko"],
+  fit=["cloud", "hybrid", "private", "local"]),
 
 T("checkov", "Checkov / tfsec / KubeLinter (IaC Validation)", 3, "IaC Validation",
   ["iac_scan"], "oss", "Apache-2.0", "Optional",
@@ -561,22 +614,83 @@ T("vault", "HashiCorp Vault / OpenBao (Secret Management)", 5, "Secret Managemen
   oss_alt=["OpenBao","Infisical","SOPS + age","Sealed Secrets"]),
 
 # ======================= STAGE 6: DEPLOY & UPDATE ==========================
-T("k3s-control", "Kubernetes / K3s Control Plane (ต่อ 1 Node)", 6, "Container Orchestration",
+T("k3s-control", "K3s (Lightweight Kubernetes, ต่อ 1 Node)", 6, "Container Orchestration",
   ["orchestration","deploy_strategy","iam_mfa"], "oss", "Apache-2.0", "Core",
   ["Red Hat OpenShift","Rancher Enterprise","VMware Tanzu","Google GKE Enterprise","Azure AKS"],
   2, 4, 40, 4, 8, 100, True, 2.5, "resident",
   0.30, 90, 0.15, 0.20, ["gov", "enterprise", "internal", "aiml"],
-  "K3s docs: server node ขั้นต่ำ 2 vCPU / 2 GB (แนะนำ 4 GB); kubeadm control plane ขั้นต่ำ 2 vCPU / 2 GB แต่ etcd + apiserver ที่โหลดจริงควรมี 4 GB ขึ้นไป",
-  "ถ้าโครงการยังใช้ Docker Compose อยู่ (เช่น UAT ของทั้ง 2 โครงการ) ยังไม่ต้องนับส่วนนี้ — แต่ต้องเผื่อไว้ในแผน Production เพราะ Blueprint ระบุ Container Orchestration เป็น Core",
-  oss_alt=["MicroK8s","K0s","Docker Swarm","Nomad","Docker Compose (UAT เท่านั้น)"]),
+  "K3s docs: server node ขั้นต่ำ 2 vCPU / 2 GB (แนะนำ 4 GB); เหมาะกับ private / hybrid / local ไม่ใช่ managed cloud control plane",
+  "ทางเลือกหลักสำหรับติดตั้ง Kubernetes เองในเครื่องหรือศูนย์ข้อมูลปิด — ใช้ Helm/Kustomize ร่วมเพื่อแพ็กเกจงานขึ้นคลัสเตอร์",
+  oss_alt=["MicroK8s","K0s","kubeadm","kind","k3d"],
+  fit=["private", "hybrid", "local"]),
 
-T("argocd", "Argo CD / Flux (GitOps Continuous Delivery)", 6, "Deployment Strategy",
+T("kubernetes-kubeadm", "Kubernetes kubeadm (Self-managed Control Plane)", 6, "Container Orchestration",
+  ["orchestration","deploy_strategy","iam_mfa"], "oss", "Apache-2.0", "Optional",
+  ["Red Hat OpenShift","Rancher","VMware Tanzu","Google GKE Enterprise"],
+  4, 8, 80, 8, 16, 200, True, 4.0, "resident",
+  0.40, 90, 0.15, 0.20, ["gov", "enterprise", "internal", "aiml"],
+  "kubeadm control plane ขั้นต่ำ 2 vCPU / 2 GB แต่ etcd + apiserver ที่โหลดจริงควรมี 4 vCPU / 8 GB ขึ้นไปต่อ node",
+  "Kubernetes เต็มรูปแบบสำหรับ private/hybrid ที่ต้องการเวอร์ชัน upstream และส่วนขยายของระบบนิเวศครบ — หนักกว่า K3s",
+  oss_alt=["K3s","MicroK8s","RKE2"],
+  fit=["private", "hybrid"]),
+
+T("kind-k3d", "kind / k3d (Kubernetes ใน Docker สำหรับ Local CI)", 6, "Local Kubernetes",
+  ["orchestration","deploy_strategy"], "oss", "Apache-2.0", "Optional",
+  ["Docker Desktop Kubernetes","Minikube","Rancher Desktop"],
+  2, 8, 40, 4, 16, 80, True, 3.0, "resident",
+  0.10, 14, 0.10, 0.10, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "kind รัน node เป็น container; แนะนำ 8 GB RAM เพราะรวม Docker engine + control plane + workload บนเครื่องพัฒนา/agent",
+  "ใช้ทดสอบ pipeline และ Helm chart ในเครื่องหรือใน job CI ไม่แทนคลัสเตอร์ Production",
+  oss_alt=["minikube","MicroK8s","K3s"],
+  fit=["local"]),
+
+T("microk8s", "MicroK8s (Local / Private Kubernetes)", 6, "Container Orchestration",
+  ["orchestration","deploy_strategy"], "oss", "Apache-2.0", "Optional",
+  ["K3s","kubeadm","Red Hat OpenShift Local"],
+  2, 4, 40, 4, 8, 100, True, 2.5, "resident",
+  0.25, 90, 0.15, 0.20, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "MicroK8s docs: เครื่องพัฒนา 4 GB ขึ้นไป; production เล็กใช้ 4 vCPU / 8 GB เมื่อเปิด dns, storage, ingress, helm",
+  "ติดตั้งแบบ snap บน Ubuntu ได้ทั้ง local และ private — ทางเลือกเมื่อหน่วยงานล็อกไว้ที่ Ubuntu",
+  oss_alt=["K3s","kubeadm","k0s"],
+  fit=["local", "private"]),
+
+T("helm", "Helm 3 (Kubernetes Package Manager)", 6, "Deployment Packaging",
+  ["deploy_strategy","config_mgmt","version_tag"], "oss", "Apache-2.0", "Core",
+  ["HashiCorp Waypoint","Rancher Apps","OpenShift Templates"],
+  1, 1, 5, 1, 2, 10, False, 0.0, "per_build",
+  0.02, 365, 0.05, 0.10, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "Helm เป็น Go CLI กิน RAM น้อย (< 200 MB); ใช้ได้กับทุกคลัสเตอร์ ทั้ง cloud managed, hybrid, private และ kind/k3d",
+  "จำเป็นเมื่อต้องติดตั้งแอปเป็น chart ซ้ำได้ทุกสภาพแวดล้อม — คู่กับ kubectl/Kustomize ไม่แทน GitOps ถ้าต้องการ audit จาก Git โดยตรง",
+  oss_alt=["Kustomize","carvel kapp","Helmfile"],
+  fit=["cloud", "hybrid", "private", "local"]),
+
+T("kustomize", "Kustomize (Overlay / GitOps แบบไฟล์)", 6, "Deployment Packaging",
+  ["deploy_strategy","config_mgmt"], "oss", "Apache-2.0", "Optional",
+  ["Helm","Jsonnet","cdk8s"],
+  1, 1, 5, 1, 2, 10, False, 0.0, "per_build",
+  0.01, 365, 0.05, 0.10, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "Kustomize รวมใน kubectl อยู่แล้ว; binary แยกใช้ RAM < 150 MB ต่อรอบ build",
+  "เหมาะกับ private/air-gap ที่ไม่ต้องการ template engine ของ Helm — วาง overlay ตาม dev/uat/prod",
+  oss_alt=["Helm","kustomize-controller (Flux)"],
+  fit=["cloud", "hybrid", "private", "local"]),
+
+T("argocd", "Argo CD (GitOps Continuous Delivery)", 6, "Deployment Strategy",
   ["deploy_strategy","audit_trail","quality_gate","version_tag"], "oss", "Apache-2.0", "Core",
   ["Harness CD","Spinnaker Enterprise","GitLab Premium Auto DevOps","LaunchDarkly"],
   2, 4, 20, 4, 8, 60, True, 2.0, "resident",
   0.10, 365, 0.10, 0.15, ["gov", "enterprise", "internal", "aiml"],
   "Argo CD ประกอบด้วย api-server, repo-server, application-controller, Redis; รวมกันขั้นต่ำ ~2 vCPU / 2-4 GB สำหรับ < 50 applications",
-  "ให้ Git เป็น Single Source of Truth = ได้ Audit Trail และ Rollback ฟรีตาม CORE-R2; Argo Rollouts เพิ่ม Canary/Blue-Green ได้ด้วย resource เพิ่มเพียง ~0.5 vCPU / 0.5 GB"),
+  "ให้ Git เป็น Single Source of Truth = ได้ Audit Trail และ Rollback; ใช้ได้ทั้งคลัสเตอร์ cloud และที่ติดตั้งเอง",
+  oss_alt=["Flux CD","Rancher Fleet"]),
+
+T("flux-cd", "Flux CD (GitOps, CNCF Graduated)", 6, "Deployment Strategy",
+  ["deploy_strategy","audit_trail","version_tag","config_mgmt"], "oss", "Apache-2.0", "Optional",
+  ["Argo CD","Harness CD","Spinnaker"],
+  1, 2, 10, 2, 4, 30, True, 0.8, "resident",
+  0.05, 365, 0.10, 0.15, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "Flux controllers (source, kustomize, helm, notification) รวมกันประมาณ 0.5-1.5 vCPU / 1-2 GB สำหรับคลัสเตอร์ขนาดเล็ก",
+  "ทางเลือก GitOps ที่เบากว่า Argo CD และทำงานแบบ pull บนคลัสเตอร์ — เหมาะกับ private/hybrid ที่จำกัด RAM",
+  oss_alt=["Argo CD","Rancher Fleet"]),
 
 T("falco", "Falco (Runtime Security Monitoring, ต่อ Node)", 6, "Runtime Security",
   ["runtime_security","siem_alert"], "oss", "Apache-2.0", "Optional",
@@ -586,6 +700,26 @@ T("falco", "Falco (Runtime Security Monitoring, ต่อ Node)", 6, "Runtime Se
   "Falco ใช้ eBPF/kernel module ดักจับ syscall; RAM ~200-500 MB ต่อ node แต่ CPU เพิ่มขึ้นตาม syscall rate (ปกติ 5-15% ของ 1 core)",
   "ภาครัฐกำหนด 'Mandatory Real-time' — ต้องลงทุก node ที่รัน container; ระวัง event flood ทำให้ Elasticsearch โตเร็วกว่าที่ประเมิน ให้ตั้ง rule ให้แคบก่อนเปิดใช้จริง",
   oss_alt=["Tetragon","KubeArmor","Tracee","Osquery"]),
+
+T("kyverno", "Kyverno (Kubernetes Policy / Admission)", 6, "Policy Enforcement",
+  ["config_mgmt","iac_scan","quality_gate"], "oss", "Apache-2.0", "Optional",
+  ["OPA Gatekeeper","HashiCorp Sentinel","Prisma Cloud"],
+  1, 2, 10, 2, 4, 20, True, 0.6, "resident",
+  0.05, 90, 0.10, 0.15, ["gov", "enterprise", "internal", "aiml"],
+  "Kyverno admission controller แนะนำ 0.5-1 vCPU / 512 MB - 2 GB ตามจำนวน policy และขนาดคลัสเตอร์",
+  "บังคับ policy บนคลัสเตอร์ (image signed, no latest tag, resource limits) ได้ทั้ง private และ cloud managed",
+  oss_alt=["OPA Gatekeeper","jsPolicy"],
+  fit=["cloud", "hybrid", "private", "local"]),
+
+T("sealed-secrets", "Sealed Secrets / kubeseal (GitOps Secrets)", 5, "Secret Management",
+  ["secret_mgmt"], "oss", "Apache-2.0", "Optional",
+  ["HashiCorp Vault","External Secrets Operator","SOPS"],
+  1, 1, 5, 1, 2, 10, True, 0.2, "resident",
+  0.01, 365, 0.05, 0.10, ["gov", "enterprise", "internal", "startup", "aiml"],
+  "controller ใช้ RAM ประมาณ 64-256 MB; kubeseal เป็น CLI บนเครื่องผู้พัฒนา/pipeline",
+  "เข้ารหัส secret เก็บใน Git ได้ เหมาะกับ private GitOps และ air-gap ที่ยังไม่พร้อม Vault ทั้งชุด",
+  oss_alt=["SOPS + age","External Secrets Operator","OpenBao"],
+  fit=["hybrid", "private", "local"]),
 
 T("prometheus", "Prometheus (Metrics & Alerting)", 6, "Monitoring",
   ["monitoring","siem_alert","notify"], "oss", "Apache-2.0", "Core",
@@ -603,6 +737,16 @@ T("grafana", "Grafana (Dashboard)", 6, "Monitoring UI",
   0.02, 365, 0.05, 0.15, ["gov","enterprise","internal","aiml"],
   "Grafana เป็น Go binary กิน RAM 150-500 MB; ใช้ SQLite ในตัวหรือ PostgreSQL ภายนอก",
   "License เป็น AGPL-3.0 — เช่นเดียวกับ MinIO ต้องตรวจข้อห้าม GPL/AGPL ของภาครัฐก่อนใช้เชิงพาณิชย์/ให้บริการต่อ"),
+
+T("grafana-loki", "Grafana Loki (Log Aggregation)", 5, "Log Store",
+  ["log_mgmt","monitoring"], "oss", "AGPL-3.0", "Optional",
+  ["Splunk","Datadog Logs","Elasticsearch","OpenSearch"],
+  2, 4, 40, 4, 8, 200, True, 2.0, "resident",
+  1.00, 90, 0.20, 0.25, ["gov", "enterprise", "internal", "aiml"],
+  "Loki เก็บ index เล็กกว่า Elasticsearch; ทีมเล็กใช้ 2 vCPU / 4 GB + object storage (MinIO/S3) สำหรับ chunks",
+  "ทางเลือก log สำหรับ private/hybrid ที่ใช้ Grafana อยู่แล้ว — License เป็น AGPL-3.0 ต้องตรวจนโยบายภาครัฐก่อน",
+  oss_alt=["OpenSearch","VictoriaLogs","Graylog Open"],
+  fit=["hybrid", "private", "local"]),
 
 T("zabbix", "Zabbix Server (Infrastructure Monitoring)", 6, "Monitoring",
   ["monitoring","notify","siem_alert"], "oss", "AGPL-3.0", "Optional",
@@ -930,8 +1074,8 @@ BUNDLES = {
         tools=["harbor", "minio", "elasticsearch", "logstash", "kibana",
                "vault", "redis", "filebeat"]),
     "deploy_mon": dict(
-        role_th="Deploy & Monitor: Orchestration, GitOps, Runtime Security, Observability, Backup",
-        tools=["k3s-control", "argocd", "prometheus", "grafana", "falco",
+        role_th="Deploy & Monitor: Orchestration, Helm, GitOps, Runtime Security, Observability, Backup",
+        tools=["k3s-control", "helm", "kustomize", "argocd", "prometheus", "grafana", "falco",
                "ansible-chef", "velero-restic", "filebeat"]),
     "small_control": dict(
         role_th="Control (ขนาดเล็ก): Git, Pipeline, SAST และฐานข้อมูลของเครื่องมือรวมในเครื่องเดียว",
@@ -1043,17 +1187,21 @@ CONC_GROUP = {
     "sonarqube": "resident", "postgresql-tools": "resident", "harbor": "resident",
     "minio": "resident", "elasticsearch": "resident", "logstash": "resident",
     "kibana": "resident", "filebeat": "resident", "wazuh": "resident", "vault": "resident",
-    "k3s-control": "resident", "argocd": "resident", "falco": "resident",
-    "prometheus": "resident", "grafana": "resident", "zabbix": "resident",
+    "k3s-control": "resident", "kubernetes-kubeadm": "resident", "kind-k3d": "resident",
+    "microk8s": "resident", "argocd": "resident", "flux-cd": "resident", "falco": "resident",
+    "prometheus": "resident", "grafana": "resident", "grafana-loki": "resident",
+    "zabbix": "resident", "kyverno": "resident", "sealed-secrets": "resident",
     "modsecurity": "resident", "keycloak": "resident", "mlflow": "resident",
     "redis": "resident", "rabbitmq": "resident", "sftp-nfs": "resident",
-    "fossology": "resident",
+    "fossology": "resident", "tekton": "resident", "woodpecker": "resident",
+    "dependency-track": "resident",
     # ขั้นตอนใน Pipeline (เรียงต่อกัน)
     "github-actions-runner": "ci_seq", "opa-conftest": "ci_seq", "semgrep": "ci_seq",
     "gitleaks": "ci_seq", "trivy": "ci_seq", "linters": "ci_seq",
-    "maven-gradle": "ci_seq", "docker-buildkit": "ci_seq", "checkov": "ci_seq",
+    "maven-gradle": "ci_seq", "docker-buildkit": "ci_seq", "podman-buildah": "ci_seq",
+    "checkov": "ci_seq",
     "cosign": "ci_seq", "syft": "ci_seq", "unit-test-runner": "ci_seq",
-    "testcontainers": "ci_seq",
+    "testcontainers": "ci_seq", "helm": "ci_seq", "kustomize": "ci_seq",
     # งานหลังบ้าน
     "dependency-check": "async", "owasp-zap": "async", "nuclei": "async",
     "playwright-a11y": "async", "testssl": "async", "ansible-chef": "async",
@@ -1118,7 +1266,17 @@ PROFILE_EXTRA = {
     "grafana":         ["startup"],
     "keycloak":        ["internal", "startup"],
     "argocd":          ["internal", "startup"],
+    "flux-cd":         ["internal", "startup"],
     "k3s-control":     ["internal", "startup"],
+    "helm":            ["internal", "startup"],
+    "kustomize":       ["internal", "startup"],
+    "kind-k3d":        ["internal", "startup"],
+    "tekton":          ["internal", "startup"],
+    "woodpecker":      ["startup"],
+    "podman-buildah":  ["startup"],
+    "kyverno":         ["internal", "startup"],
+    "sealed-secrets":  ["internal", "startup"],
+    "dependency-track": ["internal", "startup"],
     "filebeat":        ["startup"],
     "opensearch":      ["startup"],
     "openbao":         ["startup"],
@@ -1145,6 +1303,9 @@ PROFILE_EXTRA = {
     "nginx-gateway":   ["startup"],
     "nuclei":          ["aiml"],
     "dependency-check": ["startup", "aiml"],
+    "grafana-loki":    ["internal", "startup"],
+    "kubernetes-kubeadm": ["internal"],
+    "microk8s":        ["internal", "startup"],
 }
 _PROFILE_ORDER = ["gov", "enterprise", "internal", "startup", "aiml"]
 
@@ -1161,3 +1322,174 @@ for _t in TOOLS:
         _t["storage"].update(STORAGE_CAL[_t["id"]])
 _missing = [t["id"] for t in TOOLS if t["id"] not in CONC_GROUP]
 assert not _missing, f"tools ไม่ได้กำหนด CONC_GROUP: {_missing}"
+
+# ---------------------------------------------------------------------------
+# 10) สภาพแวดล้อมที่ติดตั้งได้ + สูตรติดตั้ง (ใช้สร้าง .sh ต่อเครื่อง)
+# ---------------------------------------------------------------------------
+FIT_ALL = ["cloud", "hybrid", "private", "local"]
+FIT_SELFHOST = ["private", "hybrid", "local"]
+FIT_MANAGED = ["cloud", "hybrid"]
+FIT_OVERRIDE = {
+    "helm": FIT_ALL, "kustomize": FIT_ALL, "podman-buildah": FIT_ALL,
+    "tekton": FIT_ALL, "kyverno": FIT_ALL, "checkov": FIT_ALL, "cosign": FIT_ALL,
+    "syft": FIT_ALL, "trivy": FIT_ALL, "gitleaks": FIT_ALL, "semgrep": FIT_ALL,
+    "kind-k3d": ["local"], "microk8s": ["local", "private"],
+    "kubernetes-kubeadm": ["private", "hybrid"],
+    "k3s-control": ["private", "hybrid", "local"],
+    "woodpecker": ["private", "hybrid", "local"],
+    "sealed-secrets": ["hybrid", "private", "local"],
+    "grafana-loki": ["hybrid", "private", "local"],
+    "dependency-track": ["private", "hybrid", "local"],
+    "flux-cd": FIT_ALL, "argocd": FIT_ALL,
+}
+
+
+def _inst(family, packages=None, *lines):
+    return dict(family=family, packages=list(packages or []), lines=list(lines))
+
+
+INSTALL = {
+    "gitlab-ce": _inst("binary", ["curl", "openssh-server", "ca-certificates"],
+                       'need_cmd gitlab-ctl || install_from_mirror gitlab-ce gitlab-ce.deb'),
+    "gitea": _inst("binary", ["git", "ca-certificates"],
+                   'need_cmd gitea || install_from_mirror gitea gitea'),
+    "github-actions-runner": _inst("binary", ["ca-certificates"],
+                                   'need_cmd config.sh || install_from_mirror actions-runner actions-runner.tar.gz'),
+    "jenkins-master": _inst("apt", ["openjdk-17-jre-headless"],
+                            'need_cmd jenkins || install_from_mirror jenkins jenkins.deb'),
+    "jenkins-agent": _inst("apt", ["openjdk-17-jre-headless", "git"],
+                           'need_cmd agent.jar || install_from_mirror jenkins-agent agent.jar'),
+    "argo-workflows": _inst("k8s", None,
+                            'need_cmd argo || install_from_mirror argo argo',
+                            'kubectl apply -k "$MIRROR/argo-workflows" 2>/dev/null || log "วาง manifests ของ Argo Workflows ใน $MIRROR/argo-workflows"'),
+    "tekton": _inst("k8s", None,
+                    'need_cmd tkn || install_from_mirror tkn tkn',
+                    'kubectl apply -k "$MIRROR/tekton" 2>/dev/null || log "วาง manifests ของ Tekton ใน $MIRROR/tekton"'),
+    "woodpecker": _inst("binary", ["ca-certificates"],
+                        'need_cmd woodpecker-server || install_from_mirror woodpecker woodpecker-server'),
+    "opa-conftest": _inst("binary", None, 'need_cmd conftest || install_from_mirror conftest conftest'),
+    "nginx-gateway": _inst("apt", ["nginx"],),
+    "sonarqube": _inst("apt", ["openjdk-17-jre-headless"],
+                       'need_cmd sonar.sh || install_from_mirror sonarqube sonarqube.zip'),
+    "postgresql-tools": _inst("apt", ["postgresql", "postgresql-contrib"],),
+    "semgrep": _inst("binary", ["python3", "python3-pip"],
+                     'need_cmd semgrep || install_from_mirror semgrep semgrep'),
+    "gitleaks": _inst("binary", None, 'need_cmd gitleaks || install_from_mirror gitleaks gitleaks'),
+    "dependency-check": _inst("binary", ["openjdk-17-jre-headless"],
+                              'need_cmd dependency-check.sh || install_from_mirror dependency-check dependency-check.zip'),
+    "dependency-track": _inst("binary", ["openjdk-17-jre-headless"],
+                              'need_cmd java || true',
+                              'install_from_mirror dependency-track dependency-track.jar || log "วาง dependency-track.jar ใน $MIRROR"'),
+    "trivy": _inst("binary", None, 'need_cmd trivy || install_from_mirror trivy trivy'),
+    "fossology": _inst("apt", ["fossology"],),
+    "linters": _inst("apt", ["python3", "python3-pip", "nodejs", "npm"],
+                     'need_cmd eslint || log "ติดตั้ง eslint/pylint/golangci-lint จาก $MIRROR ตามภาษาของโครงการ"'),
+    "maven-gradle": _inst("apt", ["openjdk-17-jdk", "maven"],
+                          'need_cmd gradle || install_from_mirror gradle gradle.zip'),
+    "docker-buildkit": _inst("binary", ["uidmap", "dbus-user-session"],
+                             'need_cmd docker || install_from_mirror docker docker.tgz',
+                             'need_cmd buildctl || install_from_mirror buildkit buildkit.tgz'),
+    "podman-buildah": _inst("apt", ["podman", "buildah", "skopeo"],),
+    "checkov": _inst("binary", ["python3", "python3-pip"],
+                     'need_cmd checkov || install_from_mirror checkov checkov'),
+    "cosign": _inst("binary", None, 'need_cmd cosign || install_from_mirror cosign cosign'),
+    "syft": _inst("binary", None, 'need_cmd syft || install_from_mirror syft syft'),
+    "unit-test-runner": _inst("apt", ["python3", "python3-pip", "nodejs"],
+                              'log "ติดตั้ง pytest/jest/junit ตามภาษาของโครงการจาก $MIRROR"'),
+    "testcontainers": _inst("binary", None,
+                            'log "Testcontainers ใช้ Docker/Podman ที่ติดตั้งบนเครื่องนี้"'),
+    "owasp-zap": _inst("binary", ["openjdk-17-jre-headless"],
+                       'need_cmd zap.sh || install_from_mirror zap zap.tar.gz'),
+    "nuclei": _inst("binary", None, 'need_cmd nuclei || install_from_mirror nuclei nuclei'),
+    "locust": _inst("binary", ["python3", "python3-pip"],
+                    'need_cmd locust || install_from_mirror locust locust'),
+    "playwright-a11y": _inst("apt", ["nodejs", "npm"],
+                             'need_cmd playwright || install_from_mirror playwright playwright'),
+    "testssl": _inst("apt", ["openssl", "bsdmainutils"],
+                     'need_cmd testssl.sh || install_from_mirror testssl testssl.sh'),
+    "harbor": _inst("binary", ["docker.io", "docker-compose"],
+                    'install_from_mirror harbor harbor.tgz || log "วาง Harbor installer ใน $MIRROR"'),
+    "minio": _inst("binary", None, 'need_cmd minio || install_from_mirror minio minio'),
+    "elasticsearch": _inst("apt", ["elasticsearch"],),
+    "logstash": _inst("apt", ["logstash"],),
+    "kibana": _inst("apt", ["kibana"],),
+    "filebeat": _inst("apt", ["filebeat"],),
+    "wazuh": _inst("binary", None, 'install_from_mirror wazuh wazuh-manager.deb || log "วาง Wazuh package ใน $MIRROR"'),
+    "vault": _inst("binary", None, 'need_cmd vault || install_from_mirror vault vault'),
+    "openbao": _inst("binary", None, 'need_cmd bao || install_from_mirror openbao bao'),
+    "opensearch": _inst("binary", None, 'install_from_mirror opensearch opensearch.tar.gz || log "วาง OpenSearch ใน $MIRROR"'),
+    "k3s-control": _inst("k8s", None,
+                         'need_cmd k3s || install_from_mirror k3s k3s',
+                         'if [ ! -e /usr/local/bin/kubectl ]; then ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl 2>/dev/null || true; fi'),
+    "kubernetes-kubeadm": _inst("k8s", ["conntrack", "socat"],
+                                'need_cmd kubeadm || install_from_mirror kubeadm kubeadm',
+                                'need_cmd kubelet || install_from_mirror kubelet kubelet',
+                                'need_cmd kubectl || install_from_mirror kubectl kubectl'),
+    "kind-k3d": _inst("binary", ["docker.io"],
+                      'need_cmd kind || install_from_mirror kind kind',
+                      'need_cmd k3d || install_from_mirror k3d k3d'),
+    "microk8s": _inst("apt", ["snapd"],
+                      'need_cmd microk8s || log "ติดตั้ง MicroK8s จาก snap ที่ mirror ของหน่วยงาน: snap install microk8s --classic"'),
+    "helm": _inst("binary", None, 'need_cmd helm || install_from_mirror helm helm'),
+    "kustomize": _inst("binary", None,
+                       'need_cmd kustomize || install_from_mirror kustomize kustomize',
+                       'need_cmd kubectl || install_from_mirror kubectl kubectl'),
+    "argocd": _inst("k8s", None,
+                    'need_cmd argocd || install_from_mirror argocd argocd',
+                    'kubectl apply -k "$MIRROR/argocd" 2>/dev/null || log "วาง manifests ของ Argo CD ใน $MIRROR/argocd"'),
+    "flux-cd": _inst("k8s", None,
+                     'need_cmd flux || install_from_mirror flux flux',
+                     'log "flux install --components-extra=image-reflector-controller --export > flux.yaml แล้ว apply จาก $MIRROR"'),
+    "falco": _inst("apt", ["dkms"],
+                   'need_cmd falco || install_from_mirror falco falco.deb'),
+    "kyverno": _inst("k8s", None,
+                     'need_cmd kyverno || install_from_mirror kyverno kyverno',
+                     'kubectl apply -k "$MIRROR/kyverno" 2>/dev/null || log "วาง manifests ของ Kyverno ใน $MIRROR/kyverno"'),
+    "prometheus": _inst("binary", None, 'need_cmd prometheus || install_from_mirror prometheus prometheus'),
+    "grafana": _inst("apt", ["grafana"],),
+    "grafana-loki": _inst("binary", None, 'need_cmd loki || install_from_mirror loki loki'),
+    "zabbix": _inst("apt", ["zabbix-server-pgsql", "zabbix-frontend-php"],),
+    "ansible-chef": _inst("apt", ["ansible"],),
+    "modsecurity": _inst("apt", ["libmodsecurity3", "nginx"],),
+    "keycloak": _inst("binary", ["openjdk-17-jre-headless"],
+                      'install_from_mirror keycloak keycloak.tar.gz || log "วาง Keycloak ใน $MIRROR"'),
+    "velero-restic": _inst("binary", None,
+                           'need_cmd velero || install_from_mirror velero velero',
+                           'need_cmd restic || install_from_mirror restic restic'),
+    "prowler": _inst("binary", ["python3", "python3-pip"],
+                     'need_cmd prowler || install_from_mirror prowler prowler'),
+    "mlflow": _inst("binary", ["python3", "python3-pip"],
+                    'need_cmd mlflow || install_from_mirror mlflow mlflow'),
+    "llm-eval": _inst("binary", ["python3"],
+                      'log "วาง harness ประเมินโมเดลใน $MIRROR/llm-eval"'),
+    "gpu-training": _inst("binary", None, 'log "โหนด GPU — ติดตั้ง CUDA/driver ตามคู่มือของหน่วยงาน"'),
+    "redis": _inst("apt", ["redis-server"],),
+    "rabbitmq": _inst("apt", ["rabbitmq-server"],),
+    "sftp-nfs": _inst("apt", ["openssh-server", "nfs-kernel-server"],),
+    "scancode": _inst("binary", ["python3", "python3-pip"],
+                      'need_cmd scancode || install_from_mirror scancode scancode'),
+    "cbomkit": _inst("binary", None, 'need_cmd cbomkit || install_from_mirror cbomkit cbomkit'),
+    "sealed-secrets": _inst("k8s", None,
+                            'need_cmd kubeseal || install_from_mirror kubeseal kubeseal',
+                            'kubectl apply -k "$MIRROR/sealed-secrets" 2>/dev/null || log "วาง controller ใน $MIRROR/sealed-secrets"'),
+}
+
+for _t in TOOLS:
+    if not _t.get("fit"):
+        _t["fit"] = list(FIT_OVERRIDE.get(_t["id"]) or (FIT_MANAGED if _t.get("managed") else FIT_SELFHOST))
+    else:
+        _t["fit"] = list(_t["fit"])
+    if not _t.get("install"):
+        if _t.get("managed"):
+            _t["install"] = _inst("managed", None,
+                                  'log "managed service — ไม่ติดตั้งบน VM (' + _t["id"] + ')"')
+        else:
+            _t["install"] = INSTALL.get(_t["id"]) or _inst(
+                "binary", None,
+                'need_cmd ' + _t["id"] + ' || install_from_mirror ' + _t["id"] + ' ' + _t["id"])
+    bad_fit = [x for x in _t["fit"] if x not in FIT_LABELS]
+    assert not bad_fit, f"{_t['id']} fit ไม่รู้จัก: {bad_fit}"
+    assert _t["install"].get("family") in ("apt", "binary", "k8s", "managed"), (
+        f"{_t['id']} install.family ไม่รู้จัก")
+_bad_install = [k for k in INSTALL if k not in {t["id"] for t in TOOLS}]
+assert not _bad_install, f"INSTALL อ้างเครื่องมือที่ไม่มี: {_bad_install}"

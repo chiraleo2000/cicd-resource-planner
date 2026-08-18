@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-SCHEMA = "1.2.0"
+SCHEMA = "1.3.0"
 
 STAGES = [
     dict(id="source", n=1, label="Source Code"),
@@ -37,8 +37,16 @@ JOB_SPECS = [
      "License compliance", ["scancode --license --json-pp license-report.json ."]),
     ("compile", "build", ["maven-gradle"], ["lint"], "commit", None, [],
      "Compile / package", ["echo compile with project build tool"]),
-    ("image", "build", ["docker-buildkit"], ["compile"], "build", None, [],
-     "Container image (rootless BuildKit)", ["buildctl build --frontend dockerfile.v0 --local context=."]),
+    ("image", "build", ["docker-buildkit", "podman-buildah"], ["compile"], "build", None, [],
+     "Container image (rootless BuildKit / Buildah)", ["buildctl build --frontend dockerfile.v0 --local context=."]),
+    ("helm-lint", "check", ["helm"], [], "commit", None, ["G-02"],
+     "Helm lint / template", ["helm lint ./chart", 'helm template "${APP_NAME:-app}" ./chart >/tmp/helm-rendered.yaml']),
+    ("kustomize-build", "build", ["kustomize"], ["image"], "build", None, [],
+     "Kustomize build", ["kustomize build overlays/dev"]),
+    ("kyverno-test", "check", ["kyverno"], [], "pr", None, ["G-12"],
+     "Kyverno policy test", ["kyverno test ./policies"]),
+    ("dtrack-upload", "store", ["dependency-track"], ["sbom"], "build", None, ["G-01", "G-10"],
+     "Upload SBOM to Dependency-Track", ['dtrack-cli upload --bom sbom.json --project "${DTRACK_PROJECT:-app}"']),
     ("iac", "build", ["checkov"], [], "build", None, ["G-02"],
      "IaC scan (Checkov)", ["checkov -d . --quiet --compact"]),
     ("sbom", "build", ["syft"], ["image", "compile"], "build", None, ["G-10"],
@@ -74,12 +82,49 @@ ORCH_TOOLS = [
     ("jenkins-master", "jenkins"),
     ("jenkins-agent", "jenkins"),
     ("azure-devops", "azure"),
+    ("woodpecker", "generic"),
+    ("tekton", "generic"),
 ]
 
 DEPLOY_TOOLS = [
-    "argocd", "k3s-control",
+    "argocd", "flux-cd", "helm", "kustomize",
+    "k3s-control", "kubernetes-kubeadm", "microk8s", "kind-k3d",
     "azure-kubernetes-service", "aws-eks", "gcp-gke",
 ]
+
+
+def deploy_script(tid: str | None, env: str) -> list[str]:
+    overlay = "overlays/" + env
+    if tid == "argocd":
+        return ['argocd app sync "${APP_NAME:-app}-' + env + '" --prune --timeout 300']
+    if tid == "flux-cd":
+        return ['flux reconcile kustomization "${APP_NAME:-app}-' + env + '" --with-source']
+    if tid == "helm":
+        return ['helm upgrade --install "${APP_NAME:-app}" ./chart --namespace apps-' + env +
+                ' --create-namespace --atomic --wait --timeout 10m -f ' + overlay + '/values.yaml']
+    if tid == "kustomize":
+        return ["kubectl apply -k " + overlay]
+    if tid == "k3s-control":
+        return ['export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"',
+                "kubectl apply -k " + overlay]
+    if tid == "kubernetes-kubeadm":
+        return ['export KUBECONFIG="${KUBECONFIG:-/etc/kubernetes/admin.conf}"',
+                "kubectl apply -k " + overlay]
+    if tid == "microk8s":
+        return ["microk8s kubectl apply -k " + overlay]
+    if tid == "kind-k3d":
+        return ['export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"',
+                "kubectl apply -k " + overlay]
+    if tid == "azure-kubernetes-service":
+        return ['az aks get-credentials --resource-group "${AZ_RG}" --name "${AKS_NAME}" --overwrite-existing',
+                "kubectl apply -k " + overlay]
+    if tid == "aws-eks":
+        return ['aws eks update-kubeconfig --name "${EKS_NAME}" --region "${AWS_REGION}"',
+                "kubectl apply -k " + overlay]
+    if tid == "gcp-gke":
+        return ['gcloud container clusters get-credentials "${GKE_NAME}" --region "${GCP_REGION}"',
+                "kubectl apply -k " + overlay]
+    return ["kubectl apply -k " + overlay]
 
 
 def _pick(tool_set: set, prefs: list) -> str | None:
@@ -129,13 +174,6 @@ def build_pipeline_ir(tool_ids, vms=None, profile="gov", disabled=None, project=
         ))
 
     deploy_tool = _pick(tset, DEPLOY_TOOLS)
-    deploy_name = {
-        "argocd": "GitOps deploy (Argo CD)",
-        "k3s-control": "Deploy to K3s",
-        "azure-kubernetes-service": "Deploy to AKS",
-        "aws-eks": "Deploy to EKS",
-        "gcp-gke": "Deploy to GKE",
-    }.get(deploy_tool, "Deploy (GitOps / orchestrator)")
 
     deploy_jobs = [
         ("deploy-dev", "dev", "auto", ["verify-sign", "push-registry", "image", "compile"],
@@ -152,19 +190,31 @@ def build_pipeline_ir(tool_ids, vms=None, profile="gov", disabled=None, project=
     extra = []
     if "modsecurity" in tset:
         extra.append(("waf-review", "deploy", "modsecurity", ["deploy-uat"], "monthly", "prod",
-                      [], "WAF rule review", ["echo review WAF rules"]))
+                      [], "WAF rule review",
+                      ["nginx -t && echo review WAF rules in /etc/nginx/modsec"]))
     if "falco" in tset:
         extra.append(("runtime", "deploy", "falco", ["deploy-prod"], "resident", "prod",
-                      [], "Runtime security (Falco)", ["echo falco is resident on nodes"]))
+                      [], "Runtime security (Falco)",
+                      ["falco-driver-loader && falco --pidfile /run/falco.pid"]))
     if "velero-restic" in tset:
         extra.append(("backup", "deploy", "velero-restic", ["deploy-prod"], "nightly", "prod",
-                      [], "Backup / restore drill", ["echo velero backup create nightly"]))
+                      [], "Backup / restore drill", ["velero backup create nightly --wait"]))
+    if "kyverno" in tset:
+        extra.append(("kyverno-apply", "deploy", "kyverno", ["deploy-uat"], "release", "uat",
+                      ["G-12"], "Apply cluster policies (Kyverno)", ["kubectl apply -f policies/"]))
 
+    if vms:
+        jobs.append(dict(
+            id="bootstrap", stage="source", tool_id=None,
+            name="Install tools on hosts (once)",
+            needs=[], when="manual", env=None, gates=[],
+            script=["sh install/all.sh"], enabled=("bootstrap" not in off),
+        ))
     for jid, env, when, needs, gates, title in deploy_jobs:
         jobs.append(dict(
             id=jid, stage="deploy", tool_id=deploy_tool, name=title,
             needs=list(needs), when=when, env=env, gates=list(gates),
-            script=["echo " + title], enabled=(jid not in off),
+            script=deploy_script(deploy_tool, env), enabled=(jid not in off),
         ))
     for row in extra:
         jid, stage, tid, needs, when, env, gates, title, script = row
@@ -365,3 +415,116 @@ def emit_all(ir: dict) -> dict:
         "mermaid_vms": mermaid_vms(ir),
         "mermaid_envs": mermaid_envs(ir),
     }
+
+
+def sanitize_vm(name: str) -> str:
+    import re
+    s = re.sub(r"[^A-Za-z0-9._-]+", "-", name or "VM").strip("-")
+    return s or "VM"
+
+
+def common_install_sh() -> str:
+    return "\n".join([
+        "#!/usr/bin/env sh",
+        "set -eu",
+        "# Generated by CI/CD Resource Planner " + SCHEMA,
+        "# Offline: place binaries in $MIRROR (default ./vendor)",
+        "# Then run: MIRROR=/path/to/vendor sh install/all.sh",
+        'MIRROR="${MIRROR:-./vendor}"',
+        "log() { printf '%s\\n' \"$*\"; }",
+        'need_cmd() { command -v "$1" >/dev/null 2>&1; }',
+        "pkg_install() {",
+        '  if [ "$#" -eq 0 ]; then return 0; fi',
+        "  if need_cmd apt-get; then",
+        "    apt-get update -y",
+        '    apt-get install -y "$@"',
+        "  elif need_cmd dnf; then",
+        '    dnf install -y "$@"',
+        "  elif need_cmd yum; then",
+        '    yum install -y "$@"',
+        "  else",
+        '    log "ไม่พบ apt/dnf/yum — ติดตั้งด้วยมือ: $*"',
+        "    return 1",
+        "  fi",
+        "}",
+        "install_from_mirror() {",
+        '  name="$1"',
+        '  file="${2:-$1}"',
+        '  bin="$MIRROR/$file"',
+        '  dest="/usr/local/bin/$name"',
+        '  if need_cmd "$name"; then',
+        '    log "มี $name อยู่แล้ว"',
+        "    return 0",
+        "  fi",
+        '  if [ -f "$bin" ]; then',
+        '    install -m 0755 "$bin" "$dest"',
+        '    log "ติดตั้ง $name จาก $bin"',
+        "    return 0",
+        "  fi",
+        '  log "ไม่พบ $bin — วางไฟล์ใน \\$MIRROR หรือตั้ง MIRROR เป็นเส้นทาง vendor"',
+        "  return 1",
+        "}",
+        "",
+    ])
+
+
+def build_install_pack(ir: dict, tools=None) -> dict:
+    from catalog_data import TOOLS as _TOOLS
+    tools = tools if tools is not None else _TOOLS
+    by_id = {t["id"]: t for t in tools}
+    files = {"install/00-common.sh": common_install_sh()}
+    vm_files = []
+    for i, vm in enumerate(ir.get("vms") or []):
+        name = sanitize_vm(vm.get("name") or ("VM-" + str(i + 1)))
+        fname = "install/" + name + ".sh"
+        vm_files.append(fname)
+        ids = list(vm.get("tools") or [])
+        pkgs = []
+        body = []
+        for tid in ids:
+            t = by_id.get(tid)
+            if not t:
+                body.append('log "ข้าม ' + tid + ' — ไม่พบใน catalog"')
+                continue
+            inst = t.get("install") or {"family": "binary", "packages": [], "lines": []}
+            body.append("")
+            body.append('log "--- ' + (t.get("name") or tid) + ' ---"')
+            if inst.get("family") == "managed" or t.get("managed"):
+                body.append('log "managed service — ไม่ติดตั้งบน VM นี้ (' + tid + ')"')
+                continue
+            for p in inst.get("packages") or []:
+                if p not in pkgs:
+                    pkgs.append(p)
+            body.extend(inst.get("lines") or [])
+        lines = [
+            "#!/usr/bin/env sh",
+            "set -eu",
+            "# VM: " + (vm.get("name") or name),
+            "# Role: " + (vm.get("role") or ""),
+            'HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+            "# shellcheck disable=SC1091",
+            '. "$HERE/00-common.sh"',
+            'log "ติดตั้งเครื่องมือบน ' + (vm.get("name") or name) + '"',
+        ]
+        if pkgs:
+            lines.append("pkg_install " + " ".join(pkgs))
+        files[fname] = "\n".join(lines + body + [
+            'log "เสร็จบน ' + (vm.get("name") or name) + '"', ""
+        ])
+    all_lines = [
+        "#!/usr/bin/env sh",
+        "set -eu",
+        'HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+        "# shellcheck disable=SC1091",
+        '. "$HERE/00-common.sh"',
+        'log "ติดตั้งทุกเครื่องตามผัง VM"',
+    ]
+    for f in vm_files:
+        all_lines.append('sh "$HERE/' + f[len("install/"):] + '"')
+    if not vm_files:
+        all_lines.append('log "ยังไม่มี VM ในแผน — จัดเครื่องมือลงเครื่องก่อน"')
+    all_lines.append('log "ติดตั้งครบทุกเครื่องแล้ว"')
+    all_lines.append("")
+    files["install/all.sh"] = "\n".join(all_lines)
+    return files
+

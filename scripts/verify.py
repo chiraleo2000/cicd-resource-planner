@@ -38,6 +38,10 @@ def test_catalog_invariants():
     print("[1] catalog invariants")
     ids = [t["id"] for t in C.TOOLS]
     check(len(ids) == len(set(ids)), "tool id ซ้ำกัน")
+    for need in ("helm", "k3s-control", "kind-k3d", "kubernetes-kubeadm",
+                 "microk8s", "flux-cd", "tekton", "woodpecker", "podman-buildah",
+                 "kyverno", "dependency-track", "grafana-loki", "sealed-secrets"):
+        check(need in ids, "ขาดเครื่องมือ " + need)
     allcaps = set(C.CAPABILITIES)
     for t in C.TOOLS:
         bad = [c for c in t["capabilities"] if c not in allcaps]
@@ -53,6 +57,10 @@ def test_catalog_invariants():
         check(t["freq"] in {f["id"] for f in C.FREQ_CLASSES}, f"{t['id']} freq ไม่รู้จัก")
         check(t["conc_group"] in {"resident", "ci_seq", "async", "load"},
               f"{t['id']} conc_group ไม่รู้จัก")
+        check(set(t.get("fit") or []) <= {"cloud", "hybrid", "private", "local"} and t.get("fit"),
+              f"{t['id']} fit ไม่ครบหรือไม่รู้จัก: {t.get('fit')}")
+        fam = (t.get("install") or {}).get("family")
+        check(fam in {"apt", "binary", "k8s", "managed"}, f"{t['id']} install.family={fam}")
         check(t["storage"]["retention_days"] > 0, f"{t['id']} retention <= 0")
         check(0 <= t["storage"]["index_overhead"] <= 1, f"{t['id']} index_overhead นอกช่วง")
         check(bool(t["profiles"]), f"{t['id']} ไม่ระบุ profile")
@@ -460,10 +468,14 @@ def test_pipeline_parity():
         dict(id="gov-core", tools=["gitea", "jenkins-master", "gitleaks", "semgrep",
                                    "trivy", "docker-buildkit", "syft", "cosign",
                                    "owasp-zap", "harbor", "argocd"],
-             profile="gov", disabled=[]),
+             profile="gov", disabled=[], vms=[]),
         dict(id="ent-gh", tools=["github-actions", "gitleaks", "trivy", "unit-test-runner"],
-             profile="enterprise", disabled=["secret-scan"]),
-        dict(id="empty", tools=[], profile="internal", disabled=[]),
+             profile="enterprise", disabled=["secret-scan"], vms=[]),
+        dict(id="empty", tools=[], profile="internal", disabled=[], vms=[]),
+        dict(id="helm-k3s", tools=["helm", "k3s-control", "kustomize"],
+             profile="gov", disabled=[],
+             vms=[{"name": "DEPLOY-01", "role": "deploy",
+                   "tools": ["k3s-control", "helm", "kustomize"]}]),
     ]
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as fh:
         json.dump(fixtures, fh, ensure_ascii=False)
@@ -477,8 +489,10 @@ def test_pipeline_parity():
         return
     js = {x["id"]: x for x in json.loads(proc.stdout)}
     for fx in fixtures:
-        ir = PG.build_pipeline_ir(fx["tools"], profile=fx["profile"], disabled=fx["disabled"])
+        ir = PG.build_pipeline_ir(fx["tools"], vms=fx.get("vms") or [],
+                                  profile=fx["profile"], disabled=fx["disabled"])
         files = PG.emit_all(ir)
+        pack = PG.build_install_pack(ir)
         j = js.get(fx["id"])
         check(j is not None, f"{fx['id']}: JS ไม่คืนผล")
         if not j:
@@ -488,6 +502,12 @@ def test_pipeline_parity():
         check(files["gitlab"] == j["gitlab"], f"{fx['id']}: GitLab YAML ไม่ตรง")
         check(files["github"] == j["github"], f"{fx['id']}: GitHub YAML ไม่ตรง")
         check(files["mermaid_flow"] == j["mermaid_flow"], f"{fx['id']}: mermaid flow ไม่ตรง")
+        check(pack == j["install"], f"{fx['id']}: สคริปต์ติดตั้งไม่ตรง")
+        if fx["id"] == "helm-k3s":
+            yml = files["gitlab"]
+            check("helm upgrade --install" in yml, "helm-k3s ต้องมี helm upgrade")
+            check("install/all.sh" in pack, "ต้องมี install/all.sh")
+            check(any("k3s" in (pack[k] or "") for k in pack), "สคริปต์เครื่องต้องกล่าวถึง k3s")
         if ir["jobs"]:
             check(any(x["id"] == "deploy-uat" for x in ir["jobs"]),
                   f"{fx['id']}: ต้องมี deploy-uat")
