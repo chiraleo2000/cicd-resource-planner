@@ -30,6 +30,7 @@
         "k3s-control",
         "jenkins-agent",
         "harbor",
+        "nexus-repository",
         "filebeat",
         "vault"
       ],

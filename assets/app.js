@@ -15,7 +15,7 @@
 import { Planner, round } from './engine.js';
 import {
   buildPipelineIR, emitGitlab, emitGithub, emitAzure, emitJenkins,
-  mermaidFlow, mermaidVms, mermaidEnvs, svgPipeline, buildInstallPack,
+  mermaidFlow, mermaidVms, mermaidEnvs, svgPipeline, buildInstallPack, sanitizeVm,
 } from './pipeline.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -410,6 +410,10 @@ function fitArg() {
   return (!ST.fit || ST.fit === 'all') ? null : ST.fit;
 }
 
+function activeFlavor() {
+  return ST.pipelineFlavor || 'github';
+}
+
 function yamlFor(ir, flavor) {
   if (flavor === 'github') return emitGithub(ir);
   if (flavor === 'azure') return emitAzure(ir);
@@ -419,6 +423,13 @@ function yamlFor(ir, flavor) {
 
 function yamlFileName(flavor) {
   if (flavor === 'github') return 'cicd.yml';
+  if (flavor === 'azure') return 'azure-pipelines.yml';
+  if (flavor === 'jenkins') return 'Jenkinsfile';
+  return '.gitlab-ci.yml';
+}
+
+function yamlPackPath(flavor) {
+  if (flavor === 'github') return '.github/workflows/cicd.yml';
   if (flavor === 'azure') return 'azure-pipelines.yml';
   if (flavor === 'jenkins') return 'Jenkinsfile';
   return '.gitlab-ci.yml';
@@ -568,20 +579,32 @@ function wirePipelineUi() {
   };
   const btnY = $('#btnCopyYaml');
   if (btnY) btnY.onclick = () => copy('#pipeYaml');
+  const btnSh = $('#btnCopySh');
+  if (btnSh) btnSh.onclick = () => copy('#pipeSh');
   const btnDy = $('#btnDlYaml');
   if (btnDy) btnDy.onclick = () => {
     const y = $('#pipeYaml');
-    const name = ST._pipeName || yamlFileName(ST.pipelineFlavor || 'gitlab');
-    download(fileStem() + '-' + name.replace(/\//g, '_'), (y && y.value) || '', 'text/plain');
+    const flavor = activeFlavor();
+    const name = yamlFileName(flavor);
+    download(fileStem() + '-' + name.replace(/^\./, '').replace(/\//g, '_'),
+      (y && y.value) || '', 'text/plain');
+  };
+  const btnDs = $('#btnDlSh');
+  if (btnDs) btnDs.onclick = () => {
+    const y = $('#pipeSh');
+    const name = (ST.pipeFile || 'install/all.sh').replace(/\//g, '_');
+    download(fileStem() + '-' + name, (y && y.value) || '', 'text/plain');
   };
   const btnPack = $('#btnDlPack');
   if (btnPack) btnPack.onclick = () => {
     const ir = currentIR();
-    const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
+    const flavor = activeFlavor();
     const pack = currentPack();
+    const yml = yamlFor(ir, flavor);
     const files = [
-      { name: yamlFileName(flavor), content: yamlFor(ir, flavor) },
+      { name: yamlPackPath(flavor), content: yml },
     ];
+    if (flavor === 'github') files.push({ name: 'cicd.yml', content: yml });
     Object.keys(pack).sort().forEach(k => files.push({ name: k, content: pack[k] }));
     download(fileStem() + '-cicd-pack.zip', zipStore(files), 'application/zip');
   };
@@ -626,39 +649,62 @@ function renderPipeline() {
   const host = $('#pipeJobs');
   if (!host) return;
   const ir = currentIR();
-  const flavor = ST.pipelineFlavor || ir.flavors[0] || 'gitlab';
+  const flavor = activeFlavor();
   const pack = currentPack();
-  const installNames = Object.keys(pack).sort();
-  togRow($('#pipeKindRow'), [
-    { value: 'yaml', label: 'Pipeline YAML', sub: yamlFileName(flavor) },
-    { value: 'install', label: 'สคริปต์ติดตั้ง (.sh)', sub: installNames.length + ' ไฟล์' },
-  ], 'radio', v => ST.pipeKind === v, v => { ST.pipeKind = v; render(); });
+  const vmFiles = Object.keys(pack).filter(n =>
+    n.startsWith('install/') && n !== 'install/00-common.sh' && n !== 'install/all.sh')
+    .sort();
+  const installNames = ['install/all.sh', 'install/00-common.sh'].concat(vmFiles);
   togRow($('#pipeFlavorRow'), [
-    { value: 'gitlab', label: 'GitLab CI', sub: '.gitlab-ci.yml' },
     { value: 'github', label: 'GitHub Actions', sub: '.github/workflows/cicd.yml' },
+    { value: 'gitlab', label: 'GitLab CI', sub: '.gitlab-ci.yml' },
     { value: 'azure', label: 'Azure Pipelines', sub: 'azure-pipelines.yml' },
     { value: 'jenkins', label: 'Jenkins', sub: 'Jenkinsfile' },
   ], 'radio', v => flavor === v, v => { ST.pipelineFlavor = v; render(); });
   const fileHost = $('#pipeFileRow');
-  if (fileHost) {
-    if (ST.pipeKind === 'install') {
-      if (!ST.pipeFile || !pack[ST.pipeFile]) ST.pipeFile = installNames[0] || '';
-      togRow(fileHost, installNames.map(n => ({
-        value: n, label: n.replace(/^install\//, ''), sub: n,
-      })), 'radio', v => ST.pipeFile === v, v => { ST.pipeFile = v; render(); });
-    } else {
-      fileHost.innerHTML = '';
-    }
+  if (!ST.pipeFile || !pack[ST.pipeFile]) {
+    ST.pipeFile = vmFiles[0] || 'install/all.sh';
   }
-  const meta = $('#pipeMeta');
-  const yname = ST.pipeKind === 'install' ? (ST.pipeFile || 'install/all.sh') : yamlFileName(flavor);
-  ST._pipeName = yname;
-  if (meta) {
-    meta.innerHTML = 'ตรวจพบ orchestrator = <b>' + esc(ir.orchestrator) +
-      '</b> · งานที่เปิด ' + ir.jobs.filter(j => j.enabled).length + '/' + ir.jobs.length +
-      ' · ไฟล์ <b>' + esc(yname) + '</b>' +
-      (ir.vms.length ? ' · ติดตั้ง ' + ir.vms.length + ' เครื่อง' : ' · ยังไม่มี VM');
+  togRow(fileHost, installNames.filter(n => pack[n]).map(n => {
+    const base = n.replace(/^install\//, '');
+    const vm = (ir.vms || []).find(v => ('install/' + sanitizeVm(v.name || 'VM') + '.sh') === n);
+    return {
+      value: n,
+      label: base,
+      sub: vm
+        ? ((vm.role || 'VM') + ' · ' + (vm.tools || []).length + ' เครื่องมือ')
+        : (n === 'install/all.sh' ? 'รันทุกเครื่องตามลำดับ' : 'ไลบรารีร่วม'),
+    };
+  }), 'radio', v => ST.pipeFile === v, v => { ST.pipeFile = v; render(); });
+
+  const jobsOn = ir.jobs.filter(j => j.enabled);
+  const sum = $('#pipeSummary');
+  if (sum) {
+    sum.innerHTML = '<div class="grid3">' +
+      tile('Orchestrator', ir.orchestrator, 'ไฟล์ YAML: ' + yamlPackPath(flavor), '') +
+      tile('งานใน Pipeline', fmt(jobsOn.length) + '/' + fmt(ir.jobs.length),
+        'env ' + ir.envs.map(e => e.toUpperCase()).join(' → '), '') +
+      tile('สคริปต์ต่อ VM', fmt((ir.vms || []).length) + ' เครื่อง',
+        Object.keys(pack).length + ' ไฟล์ .sh', ir.vms.length ? 'ok' : 'warn') +
+    '</div>';
   }
+  const yHint = $('#pipeEnvHint');
+  if (yHint) {
+    yHint.innerHTML = 'env: <b>' + esc(ir.envs.join(', ')) + '</b> · profile <b>' +
+      esc(ir.profile) + '</b> · เครื่องมือใน YAML <b>' + fmt(ir.tools.length) +
+      '</b> · ตั้ง REGISTRY / NEXUS_URL / DEV_URL / UAT_URL / PROD_URL / DR_URL ในตัวแปรของแพลตฟอร์ม CI';
+  }
+  const vmHint = $('#pipeVmHint');
+  if (vmHint) {
+    vmHint.innerHTML = ir.vms.length
+      ? 'แต่ละไฟล์ติดตั้งเฉพาะเครื่องมือบนเครื่องนั้น — โหมดปิดเครือข่ายวางไบนารีใน <code>vendor/</code> แล้ว <code>MIRROR=./vendor sh install/all.sh</code>'
+      : 'ยังไม่มี VM ในผังทรัพยากร — จะได้ <code>install/selected-tools.sh</code> จากเครื่องมือที่เลือก หรือจัดเครื่องมือลงเครื่องในแท็บ 1';
+  }
+  const yLabel = $('#pipeYamlName');
+  if (yLabel) yLabel.textContent = yamlPackPath(flavor) + (flavor === 'github' ? '  (ดาวน์โหลดชื่อ cicd.yml)' : '');
+  const sLabel = $('#pipeShName');
+  if (sLabel) sLabel.textContent = ST.pipeFile || 'install/all.sh';
+
   host.innerHTML = ir.stages.map(st => {
     const list = ir.jobs.filter(j => j.stage === st.id);
     if (!list.length) return '';
@@ -680,11 +726,9 @@ function renderPipeline() {
     };
   });
   const y = $('#pipeYaml');
-  if (y) {
-    y.value = ST.pipeKind === 'install'
-      ? (pack[ST.pipeFile] || pack['install/all.sh'] || '')
-      : yamlFor(ir, flavor);
-  }
+  if (y) y.value = yamlFor(ir, flavor);
+  const sh = $('#pipeSh');
+  if (sh) sh.value = pack[ST.pipeFile] || pack['install/all.sh'] || '';
 }
 
 /* ========================================================================== */
@@ -1760,7 +1804,7 @@ function exportPlan() {
       title_th: c.title_th, caps: c.caps, refs: c.refs })),
     tools: ST.tools,
     pipeline: {
-      flavor: ST.pipelineFlavor || currentIR().flavors[0],
+      flavor: activeFlavor(),
       ir: currentIR(),
       files: {
         gitlab: emitGitlab(currentIR()),

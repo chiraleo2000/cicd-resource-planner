@@ -130,7 +130,8 @@ REQUIRED           = MAX(A, B, C) + OS reserve
 
 น้ำหนักเดี่ยว 20–60% (`w_solo = 0.20 + 0.40 × activity_index`) แล้วลดเพดานตามจำนวนเครื่องมือ self-hosted บน VM นั้น: 60% → 20% ที่ n = 8+
 
-แท็บ **6. สถาปัตยกรรม** และ **7. Pipeline และสคริปต์ติดตั้ง** สร้าง mermaid + YAML (GitLab/GitHub/Azure/Jenkins) และไฟล์ `install/*.sh` ต่อเครื่อง จากเครื่องมือที่เลือก
+แท็บ **6. สถาปัตยกรรม** สร้าง mermaid จากเครื่องมือที่เลือก
+แท็บ **7. Pipeline และสคริปต์ติดตั้ง** สร้างทั้งสองไฟล์ในหน้าเดียว: **Pipeline YAML** (`cicd.yml` / GitLab / Azure / Jenkins) พร้อม env, เครื่องมือ, และงาน CI — และ **สคริปต์ `.sh` คนละไฟล์ต่อ VM** ตามผังทรัพยากร (`install/<VM>.sh`)
 
 Scale Factor จากปริมาณงานจริง (ฐาน = 10 build/วัน, 2 แอป, ทีม 10 คน):
 

@@ -286,29 +286,56 @@
       <div class="btnrow" style="justify-content:space-between;align-items:flex-start">
         <h2 style="margin:0">Pipeline และสคริปต์ติดตั้ง</h2>
         <div class="btnrow noprint">
-          <button class="btn small" id="btnCopyYaml" type="button">คัดลอกไฟล์ที่เปิดอยู่</button>
-          <button class="btn small" id="btnDlYaml" type="button">ดาวน์โหลดไฟล์นี้</button>
           <button class="btn small primary" id="btnDlPack" type="button">ดาวน์โหลดทั้งชุด (ZIP)</button>
         </div>
       </div>
-      <p class="hint">YAML สำหรับรัน pipeline และไฟล์ <code>.sh</code> สำหรับติดตั้งเครื่องมือ/ไลบรารีต่อเครื่อง
-        ตามผัง VM — โหมดปิดเครือข่ายวางไบนารีใน <code>vendor/</code> แล้วตั้ง <code>MIRROR</code></p>
-      <div class="lbl2">ชนิดไฟล์</div>
-      <div class="togrow" id="pipeKindRow"></div>
-      <div class="lbl2">รูปแบบ Pipeline</div>
-      <div class="togrow" id="pipeFlavorRow"></div>
-      <div id="pipeFileRow" class="togrow" style="margin-top:8px"></div>
-      <div id="pipeMeta" class="hint" style="margin:8px 0"></div>
+      <p class="hint">หน้านี้สร้างไฟล์พร้อมใช้สองชุดแยกกัน:
+        <b>Pipeline YAML</b> (<code>cicd.yml</code> / GitLab / Azure / Jenkins) สำหรับ env เครื่องมือ และขั้นตอน CI/CD
+        และ <b>สคริปต์ติดตั้ง .sh</b> คนละไฟล์ต่อ VM ตามผังทรัพยากร</p>
+      <div id="pipeSummary"></div>
     </div>
-    <div class="grid2">
+
+    <div class="card">
+      <h3>งานใน Pipeline (เปิด/ปิดได้)</h3>
+      <p class="hint">ติ๊กงานที่ต้องการใน YAML — ไม่กระทบสคริปต์ติดตั้งบน VM</p>
+      <div id="pipeJobs"></div>
+    </div>
+
+    <div class="pipe-split">
       <div class="card">
-        <h3>งานใน Pipeline (เปิด/ปิดได้)</h3>
-        <div id="pipeJobs"></div>
+        <div class="btnrow" style="justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <h3 style="margin:0">Pipeline YAML</h3>
+            <div class="hint" id="pipeYamlName"></div>
+          </div>
+          <div class="btnrow noprint">
+            <button class="btn small" id="btnCopyYaml" type="button">คัดลอก YAML</button>
+            <button class="btn small" id="btnDlYaml" type="button">ดาวน์โหลด YAML</button>
+          </div>
+        </div>
+        <div class="lbl2">รูปแบบไฟล์</div>
+        <div class="togrow" id="pipeFlavorRow"></div>
+        <div id="pipeEnvHint" class="hint" style="margin:8px 0"></div>
+        <label class="sronly" for="pipeYaml">Pipeline YAML</label>
+        <textarea id="pipeYaml" class="mono yamlbox" rows="22" spellcheck="false"></textarea>
       </div>
+
       <div class="card">
-        <h3>สคริปต์ที่สร้างให้</h3>
-        <label class="sronly" for="pipeYaml">สคริปต์ที่สร้างให้</label>
-        <textarea id="pipeYaml" class="mono yamlbox" rows="28" spellcheck="false"></textarea>
+        <div class="btnrow" style="justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <h3 style="margin:0">สคริปต์ติดตั้ง (.sh)</h3>
+            <div class="hint" id="pipeShName"></div>
+          </div>
+          <div class="btnrow noprint">
+            <button class="btn small" id="btnCopySh" type="button">คัดลอก .sh</button>
+            <button class="btn small" id="btnDlSh" type="button">ดาวน์โหลด .sh</button>
+          </div>
+        </div>
+        <div class="lbl2">ไฟล์ต่อเครื่อง (จากผังทรัพยากร)</div>
+        <div class="togrow" id="pipeFileRow"></div>
+        <div id="pipeVmHint" class="hint" style="margin:8px 0"></div>
+        <label class="sronly" for="pipeSh">สคริปต์ติดตั้ง</label>
+        <textarea id="pipeSh" class="mono yamlbox" rows="22" spellcheck="false"></textarea>
       </div>
     </div>
   </section>

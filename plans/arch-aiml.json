@@ -82,6 +82,7 @@
       "role": "ที่เก็บและบันทึก",
       "tools": [
         "harbor",
+        "nexus-repository",
         "k3s-control",
         "redis"
       ],
@@ -90,8 +91,8 @@
       "spec": {
         "vcpu": 6,
         "ram_gb": 12,
-        "disk_os_gb": 200,
-        "disk_data_gb": 750
+        "disk_os_gb": 300,
+        "disk_data_gb": 1000
       }
     },
     {

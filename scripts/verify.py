@@ -10,7 +10,7 @@
 รัน:  python3 scripts/verify.py
 """
 from __future__ import annotations
-import json, os, subprocess, sys, tempfile, random
+import json, os, subprocess, sys, tempfile, random, glob
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -467,7 +467,12 @@ def test_compliance_sanity():
     some = all_gov[:6]
     r3 = E.compliance_check(some, "gov", "high")
     check(not (set(x["tool_id"] for x in r3["recommendations"]) & set(some)),
-          "แนะนำเครื่องมือที่ติดตั้งอยู่แล้ว")
+          "แนะนำเครื่องมือที่เลือกไปแล้ว")
+    for rec in r3["recommendations"]:
+        check("license_class" in rec, f"ข้อเสนอ {rec.get('tool_id')} ไม่มี license_class")
+        tid = rec["tool_id"]
+        check(rec["license_class"] == E.TOOL_BY_ID[tid]["license_class"],
+              f"{tid} license_class ในข้อเสนอไม่ตรง catalog")
 
 
 def test_pipeline_parity():
@@ -512,6 +517,8 @@ def test_pipeline_parity():
         check([x["enabled"] for x in ir["jobs"]] == j["enabled"], f"{fx['id']}: enabled ไม่ตรง")
         check(files["gitlab"] == j["gitlab"], f"{fx['id']}: GitLab YAML ไม่ตรง")
         check(files["github"] == j["github"], f"{fx['id']}: GitHub YAML ไม่ตรง")
+        check(files["azure"] == j["azure"], f"{fx['id']}: Azure YAML ไม่ตรง")
+        check(files["jenkins"] == j["jenkins"], f"{fx['id']}: Jenkinsfile ไม่ตรง")
         check(files["mermaid_flow"] == j["mermaid_flow"], f"{fx['id']}: mermaid flow ไม่ตรง")
         check(pack == j["install"], f"{fx['id']}: สคริปต์ติดตั้งไม่ตรง")
         if fx["id"] == "helm-k3s":
@@ -528,6 +535,24 @@ def test_pipeline_parity():
         check(job_tools <= set(fx["tools"]),
               f"{fx['id']}: มี tool ใน IR ที่ไม่ได้เลือก: {sorted(job_tools - set(fx['tools']))}")
     os.unlink(cpath)
+
+
+def test_check_compliance_plans():
+    """ด่าน CI: plans/arch-*.json ต้องสร้างรายงานได้ และผ่านเกณฑ์ในไฟล์แผน"""
+    print("[11] ด่าน check_compliance ผังอ้างอิง")
+    import check_compliance as CC
+    paths = sorted(glob.glob(os.path.join(ROOT, "plans", "arch-*.json")))
+    check(len(paths) >= 4, f"ต้องมีผัง arch-*.json อย่างน้อย 4 ไฟล์ (พบ {len(paths)})")
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            plan = json.load(fh)
+        res = CC.evaluate(plan)
+        name = plan.get("name") or os.path.basename(path)
+        probs, _advs, md = CC.report(name, plan, res)
+        check(isinstance(md, str) and md.startswith("##"), f"{name}: รายงาน Markdown ว่าง")
+        for rec in res["compliance"]["recommendations"]:
+            check("license_class" in rec, f"{name}: ข้อเสนอ {rec.get('tool_id')} ไม่มี license_class")
+        check(not probs, f"{os.path.basename(path)} ไม่ผ่านด่าน CI: {probs}")
 
 
 def main():
@@ -548,6 +573,7 @@ def main():
     test_tool_compliance_mapping()
     test_compliance_sanity()
     test_pipeline_parity()
+    test_check_compliance_plans()
     print("-" * 72)
     print(f"ผ่าน {OKN[0]} assertion · ล้มเหลว {len(FAIL)}")
     if FAIL:

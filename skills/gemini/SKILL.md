@@ -246,12 +246,18 @@ In the planner UI the same IR is drawn as offline SVG — do **not** call a CDN.
 
 ## YAML files
 
-- GitLab: `.gitlab-ci.yml` — `stages:` then one job per enabled IR job; `when: manual` on prod
-- GitHub Actions: `.github/workflows/cicd.yml` — `needs:` from IR; prod uses `environment`
-- Azure: `azure-pipelines.yml` — one stage per Blueprint stage
-- Jenkins: `Jenkinsfile` (declarative) when Jenkins tools are selected
+The planner tab **7. Pipeline และสคริปต์ติดตั้ง** shows both artefacts on one page:
 
-Working configs, not stubs. Match selected scanners, registry, and deploy tool.
+- **Pipeline YAML** — env, selected tools (`CICD_TOOLS`), profile, and CI jobs
+  - GitHub Actions: `.github/workflows/cicd.yml` (download name `cicd.yml`)
+  - GitLab: `.gitlab-ci.yml`
+  - Azure: `azure-pipelines.yml`
+  - Jenkins: `Jenkinsfile`
+- **Install `.sh`** — one script per VM from the resource plan (`install/<VM>.sh`), plus `install/00-common.sh` and `install/all.sh`
+
+ZIP download contains the YAML path above and every `install/*.sh`.
+
+Working configs, not stubs. Match selected scanners, registry, and deploy tool. Set `REGISTRY`, `NEXUS_URL`, `UAT_URL` in the CI platform variables.
 
 ## Planner pages
 
@@ -263,7 +269,7 @@ The web planner (schema 1.2.0+) has:
 4. Storage
 5. Method
 6. Architecture (mermaid + automation requirements)
-7. Pipeline YAML (job on/off + download)
+7. Pipeline YAML (`cicd.yml` + GitLab/Azure/Jenkins) และสคริปต์ `.sh` ต่อ VM — สองช่องบนหน้าเดียวกัน
 
 # Compliance Standards Register (v4 — full dump)
 

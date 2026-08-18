@@ -85,6 +85,7 @@
       "tools": [
         "jenkins-master",
         "harbor",
+        "nexus-repository",
         "jenkins-agent",
         "sonarqube",
         "kibana",
@@ -95,7 +96,7 @@
       "spec": {
         "vcpu": 12,
         "ram_gb": 24,
-        "disk_os_gb": 300,
+        "disk_os_gb": 500,
         "disk_data_gb": 1500
       }
     }

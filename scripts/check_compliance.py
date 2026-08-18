@@ -184,7 +184,7 @@ def report(name: str, plan: dict, res: dict) -> tuple[list, list, str]:
                       f"{', '.join(r['controls'])} | "
                       f"{', '.join(C.FRAMEWORK_BY_ID[f]['short_th'] for f in r['frameworks'])} | "
                       f"{r['add_vcpu']} | {r['add_ram_gb']} | {r['add_disk_gb']} | "
-                      f"{r['license']} ({r['license_class']}) |")
+                      f"{r.get('license', '-')} ({r.get('license_class', '-')}) |")
         md.append("")
     if comp["uncovered_caps"]:
         problems.append(f"[{name}] ไม่มีเครื่องมือที่ใช้ได้ภายใต้เงื่อนไขนี้ "

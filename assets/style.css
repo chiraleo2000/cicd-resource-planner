@@ -390,8 +390,19 @@ footer.foot { padding: 20px 18px 40px; color: var(--text-muted); font-size: 11.5
 .covleg i { width: 11px; height: 11px; border-radius: 3px; display: inline-block;
             margin-right: 5px; vertical-align: -1px; }
 
+.pipe-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .pipe-split { grid-template-columns: 1fr; }
+}
+#pipeFileRow { max-height: 168px; overflow: auto; }
+.pipe-split .yamlbox { min-height: 360px; }
 .yamlbox {
-  width: 100%; min-height: 220px; resize: vertical;
+  width: 100%; min-height: 280px; resize: vertical;
   font: 12px/1.45 var(--mono); padding: 10px 12px;
   border: 1px solid var(--border-strong); border-radius: 8px;
   background: var(--surface-2); color: var(--text-primary);

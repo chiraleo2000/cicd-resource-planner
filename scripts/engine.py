@@ -419,7 +419,9 @@ def compliance_check(tool_ids: list, profile_id: str = "gov", impact: str | None
             add_vcpu=best["min"]["vcpu"], add_ram_gb=best["min"]["ram_gb"],
             add_disk_gb=best["min"]["disk_os_gb"], freq=best["freq"],
             weight=duty_weight(best["freq"]), conc_group=best["conc_group"],
-            license=best["license"], note_th=best["note_th"],
+            license=best["license"],
+            license_class=best.get("license_class", "permissive"),
+            note_th=best["note_th"],
         ))
         remaining -= best_hit
         pool = [t for t in pool if t["id"] != best["id"]]
